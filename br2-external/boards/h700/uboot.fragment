@@ -1,0 +1,2 @@
+# Boot straight into extlinux.conf on the boot partition
+CONFIG_BOOTDELAY=0

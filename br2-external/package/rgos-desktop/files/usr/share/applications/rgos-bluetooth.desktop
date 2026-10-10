@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Bluetooth
+Comment=Pair keyboards, mice and controllers (bluetoothctl)
+Exec=bluetoothctl
+Terminal=true
+Categories=Settings;

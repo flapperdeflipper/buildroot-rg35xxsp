@@ -1,0 +1,77 @@
+From b3f5a70a8d5c0ae2ba99f795b13d1befcd282636 Mon Sep 17 00:00:00 2001
+From: RGOS <noreply@localhost>
+Date: Sat, 10 Oct 2026 15:20:18 +0200
+Subject: [PATCH] package/mesa3d: panfrost precompiler only needs host LLVM
+
+The panfrost (and other) precompiled CL kernels are built on the host by
+host-mesa3d. With -Dmesa-clc=system, the target build only needs CLC (and
+so LLVM, clang, libclc, SPIRV-LLVM-Translator, SPIRV-Tools) for rusticl
+(meson.build: with_clc = with_gallium_rusticl), and rusticl already pulls
+those in.
+
+Selecting BR2_PACKAGE_MESA3D_OPENCL and the target SPIR-V packages from
+NEEDS_PRECOMP_COMPILER, and making panfrost depend on target LLVM, put
+~210 MiB of LLVM/clang/libclc on the target for nothing.
+---
+ package/mesa3d/Config.in | 13 +++++++------
+ package/mesa3d/mesa3d.mk |  5 ++++-
+ 2 files changed, 11 insertions(+), 7 deletions(-)
+
+diff --git a/package/mesa3d/Config.in b/package/mesa3d/Config.in
+index e184039150..41d129f0e9 100644
+--- a/package/mesa3d/Config.in
++++ b/package/mesa3d/Config.in
+@@ -23,9 +23,8 @@ config BR2_PACKAGE_MESA3D_NEEDS_ELFUTILS
+ 
+ config BR2_PACKAGE_MESA3D_NEEDS_PRECOMP_COMPILER
+ 	bool
+-	select BR2_PACKAGE_MESA3D_OPENCL
+-	select BR2_PACKAGE_SPIRV_LLVM_TRANSLATOR
+-	select BR2_PACKAGE_SPIRV_TOOLS
++	depends on BR2_PACKAGE_LLVM_ARCH_SUPPORTS # host-mesa3d -> host-llvm
++	depends on BR2_HOST_GCC_AT_LEAST_7 # host-llvm
+ 
+ config BR2_PACKAGE_MESA3D_LLVM
+ 	bool "llvm support"
+@@ -207,15 +206,17 @@ config BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_NOUVEAU
+ config BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_PANFROST
+ 	bool "Gallium panfrost driver"
+ 	depends on BR2_TOOLCHAIN_HAS_SYNC_4 || !BR2_PACKAGE_XORG7 # libxshmfence
+-	depends on BR2_PACKAGE_MESA3D_LLVM
++	depends on BR2_PACKAGE_LLVM_ARCH_SUPPORTS # host-mesa3d -> host-llvm
++	depends on BR2_HOST_GCC_AT_LEAST_7 # host-llvm
+ 	select BR2_PACKAGE_MESA3D_GALLIUM_DRIVER
+ 	select BR2_PACKAGE_MESA3D_NEEDS_PRECOMP_COMPILER
+ 	select BR2_PACKAGE_MESA3D_RUSTICL_SUPPORTED_DRIVER
+ 	help
+ 	  Mesa driver for ARM Mali Midgard and Bifrost GPUs.
+ 
+-comment "panfrost driver needs llvm"
+-	depends on !BR2_PACKAGE_MESA3D_LLVM
++comment "panfrost driver needs host gcc >= 7"
++	depends on BR2_PACKAGE_LLVM_ARCH_SUPPORTS
++	depends on !BR2_HOST_GCC_AT_LEAST_7
+ 
+ config BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_R300
+ 	bool "Gallium Radeon R300 driver"
+diff --git a/package/mesa3d/mesa3d.mk b/package/mesa3d/mesa3d.mk
+index 87c7f427e4..f2a5f6f953 100644
+--- a/package/mesa3d/mesa3d.mk
++++ b/package/mesa3d/mesa3d.mk
+@@ -178,9 +178,12 @@ ifeq ($(BR2_PACKAGE_MESA3D_VULKAN_DRIVER_INTEL),y)
+ MESA3D_DEPENDENCIES += host-python-ply
+ endif
+ 
++# The precompiled shaders are built on the host (host-mesa3d). With
++# -Dmesa-clc=system the target build only needs CLC (and thus LLVM, clang,
++# libclc, SPIR-V) for rusticl, which pulls those in itself.
+ ifeq ($(BR2_PACKAGE_MESA3D_NEEDS_PRECOMP_COMPILER),y)
+ MESA3D_CONF_OPTS += -Dmesa-clc=system -Dprecomp-compiler=system
+-MESA3D_DEPENDENCIES += host-mesa3d spirv-llvm-translator spirv-tools
++MESA3D_DEPENDENCIES += host-mesa3d
+ endif
+ 
+ ifeq ($(BR2_PACKAGE_MESA3D_VULKAN_DRIVER),)
+-- 
+2.47.3
+

@@ -1,0 +1,19 @@
+# Local build overrides (credentials, keys) — see .config.example
+.config
+.env
+
+# Build VM SSH key + known_hosts
+.ssh/
+
+# Build output
+artifacts/
+src/padd/rgos-padd
+
+# OS / editors
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
+src/padsim/rgos-padsim
+tmp/

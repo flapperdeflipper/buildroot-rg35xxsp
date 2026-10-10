@@ -1,0 +1,28 @@
+config BR2_PACKAGE_RGOS_DESKTOP
+	bool "rgos-desktop"
+	depends on BR2_PACKAGE_SYSTEMD_LOGIND
+	depends on BR2_PACKAGE_WLROOTS
+	depends on BR2_PACKAGE_LIBGTK3_WAYLAND
+	select BR2_PACKAGE_LABWC
+	select BR2_PACKAGE_SFWBAR
+	select BR2_PACKAGE_SWAYBG
+	select BR2_PACKAGE_WLOPM
+	select BR2_PACKAGE_FOOT
+	select BR2_PACKAGE_FUZZEL
+	select BR2_PACKAGE_WVKBD
+	select BR2_PACKAGE_RGOS_PADD
+	select BR2_PACKAGE_LINUX_PAM
+	select BR2_PACKAGE_JQ # rgos-wifi
+	select BR2_PACKAGE_IW
+	select BR2_PACKAGE_ALSA_UTILS # rgos-volume
+	select BR2_PACKAGE_ALSA_UTILS_AMIXER
+	select BR2_PACKAGE_PROCPS_NG # pkill/pgrep/pidof
+	select BR2_PACKAGE_SUDO # power menu
+	select BR2_PACKAGE_DEJAVU
+	select BR2_PACKAGE_ADWAITA_ICON_THEME
+	help
+	  RGOS handheld desktop, Raspberry Pi OS style: labwc stacking
+	  window manager (title bars, main menu), sfwbar panel (start
+	  menu, window list, Wi-Fi/BT/volume/battery/clock), wallpaper,
+	  foot terminal, wvkbd on-screen keyboard, rgos-padd button
+	  mapping, helper scripts and the autologin session on tty1.

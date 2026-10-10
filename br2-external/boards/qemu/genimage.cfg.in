@@ -1,0 +1,32 @@
+# QEMU test disk: same partitions as the handheld (boot vfat + ext4 root,
+# MBR with a fixed signature) minus the SPL. bin/run-qemu boots the kernel
+# directly, the boot partition just mirrors the device layout.
+
+image boot.vfat {
+	vfat {
+		label = "RGOS-BOOT"
+		files = {
+#BOOT_FILES#
+		}
+	}
+	size = 64M
+}
+
+image #IMAGE_NAME# {
+	hdimage {
+		partition-table-type = "mbr"
+		disk-signature = #DISK_SIGNATURE#
+	}
+
+	partition boot {
+		partition-type = 0xC
+		bootable = true
+		image = "boot.vfat"
+		offset = 4M
+	}
+
+	partition rootfs {
+		partition-type = 0x83
+		image = "rootfs.ext4"
+	}
+}

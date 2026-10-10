@@ -1,0 +1,10 @@
+config BR2_PACKAGE_GTKSOURCEVIEW4
+	bool "gtksourceview4"
+	depends on BR2_PACKAGE_LIBGTK3
+	select BR2_PACKAGE_LIBXML2
+	help
+	  GTK3 text widget with syntax highlighting (API 4), needed by
+	  Mousepad. Buildroot's gtksourceview package is the GTK4 (5.x)
+	  series.
+
+	  https://gitlab.gnome.org/GNOME/gtksourceview

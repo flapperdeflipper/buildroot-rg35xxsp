@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
+/*
+ * RG35XX SP with the revised ("v2") LCD panel. Identical to the original
+ * SP except for the panel init sequence, which the panel-mipi driver loads
+ * from /lib/firmware/panels/<compatible>.panel.
+ */
+
+#include "allwinner/sun50i-h700-anbernic-rg35xx-sp.dts"
+
+/ {
+	rocknix-dt-id = "sun50i-h700-anbernic-rg35xx-sp-v2-panel";
+};
+
+&panel {
+	compatible = "anbernic,rg35xx-sp-v2-panel", "panel-mipi-dpi-spi";
+};

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Power
+Comment=Screen off, reboot, power off
+Exec=rgos-power-menu
+Terminal=false
+Categories=Settings;

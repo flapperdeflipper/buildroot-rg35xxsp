@@ -1,0 +1,75 @@
+#Api2
+# RGOS panel (sfwbar), top of the screen like Raspberry Pi OS:
+#   [menu] [desktop] [open windows ...........] [kbd] [wifi] [bt] [vol] [bat] [power] [clock]
+# Everything is clickable; with the pad, move the pointer (default mode)
+# and press A. The stock sfwbar CSS is appended below at build time.
+# Copy to ~/.config/sfwbar/sfwbar.config to customise.
+
+Set ImagePath = "icons/misc"
+Set ThicknessHint = "26px"
+
+include "winops.widget"
+
+bar {
+  edge = "top"
+  layer = "top"
+  exclusive_zone = "auto"
+
+  widget "startmenu.widget"
+  widget "showdesktop.widget"
+
+  taskbar {
+    style = "taskbar"
+    rows = 1
+    tooltips = true
+    icons = true
+    labels = true
+    sort = false
+    action[RightClick] = Menu("winops")
+  }
+
+  # spacer between the window list and the status icons
+  label {
+    css = "* { -GtkWidget-hexpand: true; }"
+  }
+
+  button {
+    value = "input-keyboard-symbolic"
+    style = "module"
+    tooltip = "On-screen keyboard"
+    action = Exec("rgos-osk toggle")
+  }
+
+  label {
+    value = Read("/run/user/1000/rgos-padd.mode")
+    interval = 1000
+    style = "module"
+    tooltip = "Pad mode (tap MENU to switch pointer / keys)"
+  }
+
+  widget "network.widget"
+  widget "bluez.widget" {
+    scan_timeout = 20;
+  }
+  widget "volume.widget" {
+    simple_icon = False;
+    volume_thresholds = [80, 50, 0];
+    volume_icons = ["audio-volume-high", "audio-volume-medium", "audio-volume-low"];
+    volume_muted = "audio-volume-muted";
+  }
+  widget "battery.widget" {
+    simple_icon = False;
+  }
+  widget "session.widget" {
+    session_actions = [
+      ["system-log-out", "Restart desktop", "sudo -n systemctl restart rgos-session.service"],
+      ["system-reboot", "Reboot", "sudo -n systemctl reboot"],
+      ["system-shutdown", "Power off", "sudo -n systemctl poweroff"]
+    ];
+  }
+  widget "clock.widget" {
+    time_format = "%H:%M"
+    tooltip_format = "%H:%M\n%x"
+  }
+}
+

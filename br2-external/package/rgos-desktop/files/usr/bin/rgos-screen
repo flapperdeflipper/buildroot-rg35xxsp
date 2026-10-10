@@ -1,0 +1,24 @@
+#!/bin/bash
+# Turn the display on/off (power key, lid).  rgos-screen on|off|toggle
+# Uses wlr-output-power-management (wlopm), so windows keep their layout.
+set -u
+
+state() {
+    # "<output> on|off" per line; on if any output is on
+    wlopm | awk '$2 == "on" { on = 1 } END { print on ? "on" : "off" }'
+}
+
+case "${1:-toggle}" in
+    on|off) want="${1}" ;;
+    toggle) [[ "$(state)" == on ]] && want=off || want=on ;;
+    *)      echo "usage: rgos-screen on|off|toggle" >&2; exit 2 ;;
+esac
+
+# Verify and retry: a power-on right after a power-off can get lost
+for _ in $(seq 1 10); do
+    wlopm --"${want}" '*'
+    sleep 0.2
+    [[ "$(state)" == "${want}" ]] && exit 0
+done
+echo "rgos-screen: output did not turn ${want}" >&2
+exit 1

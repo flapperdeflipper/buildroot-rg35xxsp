@@ -1,0 +1,16 @@
+[Unit]
+Description=Import SSH keys and Wi-Fi from the boot partition
+Documentation=file:///boot/README.txt
+DefaultDependencies=no
+After=local-fs.target
+Before=sshd.service iwd.service network-pre.target
+Wants=network-pre.target
+RequiresMountsFor=/boot
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/rgos/bootconfig
+
+[Install]
+WantedBy=multi-user.target

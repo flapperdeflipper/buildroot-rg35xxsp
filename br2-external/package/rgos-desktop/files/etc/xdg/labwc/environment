@@ -1,0 +1,9 @@
+# Environment for the RGOS desktop session (read by labwc)
+XKB_DEFAULT_LAYOUT=us
+XCURSOR_THEME=Adwaita
+XCURSOR_SIZE=24
+# Prefer native Wayland, fall back to X11 (Xwayland) for X-only apps
+GDK_BACKEND=wayland,x11
+SDL_VIDEODRIVER=wayland,x11
+QT_QPA_PLATFORM=wayland;xcb
+MOZ_ENABLE_WAYLAND=1

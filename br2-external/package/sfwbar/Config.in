@@ -1,0 +1,11 @@
+config BR2_PACKAGE_SFWBAR
+	bool "sfwbar"
+	depends on BR2_PACKAGE_LIBGTK3_WAYLAND
+	select BR2_PACKAGE_GTK_LAYER_SHELL
+	select BR2_PACKAGE_JSON_C
+	help
+	  Flexible taskbar/panel for wlroots compositors: start menu
+	  from installed apps, window list, tray, battery, volume,
+	  WiFi (iwd) and Bluetooth widgets.
+
+	  https://github.com/LBCrion/sfwbar

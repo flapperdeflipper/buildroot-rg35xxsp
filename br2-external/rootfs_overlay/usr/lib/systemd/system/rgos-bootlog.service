@@ -1,0 +1,13 @@
+[Unit]
+Description=Write a boot report to the boot partition (rgos-boot.log)
+After=multi-user.target graphical.target
+RequiresMountsFor=/boot
+
+[Service]
+Type=oneshot
+# Give the desktop session and late drivers (panel, GPU, WiFi) time to settle
+ExecStartPre=/bin/sleep 30
+ExecStart=/usr/libexec/rgos/bootlog
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Audio Mixer
+Comment=ALSA mixer
+Exec=alsamixer
+Terminal=true
+Categories=Settings;

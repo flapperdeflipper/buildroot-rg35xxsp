@@ -1,0 +1,120 @@
+#!/usr/bin/env bash
+# vi: ft=bash
+# shellcheck shell=bash disable=SC2054  # QEMU options contain commas
+#
+# Run the RGOS QEMU test image (arm64 virt, 640x480 virtio-gpu, 1 GB RAM).
+#
+# Usage:
+#   bin/run-qemu [--fresh] [--headless] [--tcg] [--audio]
+#                [--key <pubkey>] [--wifi <ssid>] [--country CC]
+#
+#   --fresh     start from a fresh copy of the built image (resets all state)
+#   --headless  no window; serial log in tmp/qemu/serial.log, use
+#               bin/qemu-screenshot for screenshots (automated testing)
+#   --tcg       software CPU emulation instead of hvf (slow; non-Apple hosts)
+#   --audio     add a virtio sound card (CoreAudio on macOS)
+#   --key, --wifi, --country
+#               provision the disk's boot partition before booting, like a
+#               real card (bin/provision.sh); --key is needed for SSH
+#
+# While running:
+#   ssh -p 2222 user@localhost        (key from --key; no password logins)
+#   bin/qemu-pad                      drive the simulated handheld buttons
+#   bin/qemu-screenshot [file.png]    screenshot (default tmp/qemu/screenshot.png)
+#   Window: Ctrl+Option+G releases the mouse; serial console: Ctrl-A X quits
+#
+set -e -u -o pipefail
+
+BASEDIR="$(cd "$(dirname "${0}")/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "${BASEDIR}/bin/lib/common.sh"
+
+IMAGES="${BASEDIR}/artifacts/qemu-arm64"
+STATE="${BASEDIR}/tmp/qemu"
+DISK="${STATE}/disk.img"
+DISK_SIZE="${RGOS_QEMU_DISK_SIZE:-8G}"
+
+FRESH=0 HEADLESS=0 TCG=0 AUDIO=0
+PROVISION=()
+while [[ "${#}" -gt 0 ]]; do
+    case "${1}" in
+        --fresh)    FRESH=1 ;;
+        --headless) HEADLESS=1 ;;
+        --tcg)      TCG=1 ;;
+        --audio)    AUDIO=1 ;;
+        --key|--wifi|--country) PROVISION+=("${1}" "${2:?${1} needs a value}"); shift ;;
+        *) sed -n '3,26p' "${0}"; exit 2 ;;
+    esac
+    shift
+done
+
+require_tools qemu-system-aarch64 qemu-img gzip
+
+[[ -f "${IMAGES}/Image" && -f "${IMAGES}/rgos-qemu-arm64.img.gz" ]] || {
+    log_err "No QEMU build in ${IMAGES}. Run: bin/buildbox.sh build qemu-arm64"
+    exit 1
+}
+
+mkdir -p "${STATE}"
+if [[ "${FRESH}" -eq 1 || ! -f "${DISK}" || "${IMAGES}/rgos-qemu-arm64.img.gz" -nt "${DISK}" ]]; then
+    log "Preparing disk ${DISK} (${DISK_SIZE}; first boot grows the root fs)"
+    gzip -dc "${IMAGES}/rgos-qemu-arm64.img.gz" >"${DISK}"
+    qemu-img resize -q -f raw "${DISK}" "${DISK_SIZE}"
+fi
+
+if [[ "${#PROVISION[@]}" -gt 0 ]]; then
+    "${BASEDIR}/bin/provision.sh" "${PROVISION[@]}" "${DISK}"
+fi
+
+if [[ "${TCG}" -eq 0 && "$(uname -s)" == "Darwin" && "$(uname -m)" == "arm64" ]]; then
+    accel=(-accel hvf -cpu host)
+else
+    accel=(-accel tcg -cpu cortex-a72)
+fi
+
+rm -f "${STATE}/pad.sock" "${STATE}/qmp.sock"
+
+args=(
+    -machine virt
+    "${accel[@]}"
+    -smp 4
+    -m 1024
+    -kernel "${IMAGES}/Image"
+    -append "$(cat "${IMAGES}/cmdline.txt")"
+    -drive "if=none,id=hd0,format=raw,file=${DISK}"
+    -device virtio-blk-pci,drive=hd0
+    -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22"
+    -device virtio-net-pci,netdev=net0
+    -device virtio-rng-pci
+    -device virtio-gpu-pci,xres=640,yres=480
+    -device virtio-keyboard-pci
+    -device virtio-tablet-pci
+    # Simulated handheld buttons (rgos-padsim in the guest, bin/qemu-pad here)
+    -device virtio-serial-pci
+    -chardev "socket,id=pad,path=${STATE}/pad.sock,server=on,wait=off"
+    -device virtserialport,chardev=pad,name=rgos.pad
+    # Control socket for screenshots (bin/qemu-screenshot)
+    -qmp "unix:${STATE}/qmp.sock,server=on,wait=off"
+)
+
+if [[ "${AUDIO}" -eq 1 ]]; then
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        args+=(-audiodev coreaudio,id=snd0)
+    else
+        args+=(-audiodev pa,id=snd0)
+    fi
+    args+=(-device virtio-sound-pci,audiodev=snd0)
+fi
+
+if [[ "${HEADLESS}" -eq 1 ]]; then
+    args+=(-display none -serial "file:${STATE}/serial.log" -daemonize -pidfile "${STATE}/qemu.pid")
+    log "Starting headless (pid file ${STATE}/qemu.pid, serial log ${STATE}/serial.log)"
+else
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        args+=(-display cocoa,zoom-to-fit=on)
+    fi
+    args+=(-serial mon:stdio)
+    log "SSH (needs --key): ssh -p 2222 user@localhost — pad: bin/qemu-pad — quit: Ctrl-A X"
+fi
+
+exec qemu-system-aarch64 "${args[@]}"

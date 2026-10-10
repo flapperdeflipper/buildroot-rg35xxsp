@@ -1,0 +1,8 @@
+config BR2_PACKAGE_RGOS_PANEL_FIRMWARE
+	bool "rgos-panel-firmware"
+	help
+	  LCD panel init sequences for Anbernic H700 handhelds, loaded by
+	  the panel-mipi kernel driver from /lib/firmware/panels/.
+	  Fetched from a pinned ROCKNIX commit.
+
+	  https://github.com/ROCKNIX/distribution

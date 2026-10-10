@@ -1,0 +1,2 @@
+# rgos-padd turns gamepad buttons into keyboard/mouse events via uinput
+KERNEL=="uinput", SUBSYSTEM=="misc", GROUP="input", MODE="0660", OPTIONS+="static_node=uinput"

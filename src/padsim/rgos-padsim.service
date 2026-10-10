@@ -1,0 +1,8 @@
+[Unit]
+Description=Simulated handheld controls (QEMU test image)
+Documentation=file:///usr/share/doc/rgos/qemu.md
+
+[Service]
+ExecStart=/usr/bin/rgos-padsim /dev/virtio-ports/rgos.pad
+Restart=on-failure
+RestartSec=1

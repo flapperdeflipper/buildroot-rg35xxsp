@@ -1,0 +1,99 @@
+#!/bin/bash
+# Import settings from the FAT boot partition (RGOS-BOOT), which can be
+# edited on any computer. Runs at every boot, before sshd and iwd.
+#
+#   /boot/authorized_keys   SSH public keys for "user" (SSH is key-only).
+#                           Kept on the card; re-read every boot.
+#   /boot/wifi.txt          Wi-Fi networks, imported into iwd and then
+#                           DELETED from the card (it holds passwords):
+#
+#                             country=NL
+#                             ssid=Home network
+#                             password=secret
+#
+#                             ssid=Open cafe
+#
+#                           A summary without passwords is left in
+#                           /boot/wifi-imported.txt.
+set -u
+
+BOOT=/boot
+KEYS_OUT=/etc/ssh/authorized_keys/user
+IWD_DIR=/var/lib/iwd
+
+log() { echo "rgos-bootconfig: $*"; }
+
+# Strip Windows line endings and a UTF-8 BOM (Notepad)
+clean() { sed -e 's/\r$//' -e '1s/^\xEF\xBB\xBF//' "$1"; }
+
+# Images ship without any SSH key: no keys on the card = no SSH access
+import_keys() {
+    if [[ ! -f "${BOOT}/authorized_keys" ]]; then
+        rm -f "${KEYS_OUT}"
+        log "no /boot/authorized_keys: SSH login disabled"
+        return 0
+    fi
+    install -d -m 0755 "$(dirname "${KEYS_OUT}")"
+    clean "${BOOT}/authorized_keys" | grep -E '^(ssh-|ecdsa-|sk-)' | sort -u >"${KEYS_OUT}.new"
+    chmod 0644 "${KEYS_OUT}.new"
+    mv "${KEYS_OUT}.new" "${KEYS_OUT}"
+    log "$(wc -l <"${KEYS_OUT}") SSH key(s) for user"
+}
+
+# iwd stores a network as <ssid>.psk|.open, or =<hex ssid>.* when the SSID
+# has characters other than [A-Za-z0-9_-]
+iwd_name() {
+    if [[ "$1" =~ ^[A-Za-z0-9_-]+$ ]]; then
+        printf '%s' "$1"
+    else
+        printf '=%s' "$(printf '%s' "$1" | od -An -tx1 | tr -d ' \n')"
+    fi
+}
+
+write_network() {
+    local ssid="$1" pass="$2" file
+    [[ -n "${ssid}" ]] || return 0
+    install -d -m 0700 "${IWD_DIR}"
+    if [[ -n "${pass}" ]]; then
+        file="${IWD_DIR}/$(iwd_name "${ssid}").psk"
+        printf '[Security]\nPassphrase=%s\n' "${pass}" >"${file}"
+        echo "ssid=${ssid} (password set)" >>"${BOOT}/wifi-imported.txt"
+    else
+        file="${IWD_DIR}/$(iwd_name "${ssid}").open"
+        printf '[Settings]\nAutoConnect=true\n' >"${file}"
+        echo "ssid=${ssid} (open network)" >>"${BOOT}/wifi-imported.txt"
+    fi
+    chmod 0600 "${file}"
+    log "Wi-Fi network imported: ${ssid}"
+}
+
+import_wifi() {
+    local line key value ssid="" pass=""
+    [[ -f "${BOOT}/wifi.txt" ]] || return 0
+    printf 'Imported %s (passwords removed from this card):\n' "$(date -Is)" >"${BOOT}/wifi-imported.txt"
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        [[ "${line}" =~ ^[[:space:]]*(#|$) ]] && continue
+        key="${line%%=*}"
+        value="${line#*=}"
+        key="$(tr -d '[:space:]' <<<"${key}" | tr '[:upper:]' '[:lower:]')"
+        case "${key}" in
+            ssid)
+                write_network "${ssid}" "${pass}"
+                ssid="${value}" pass="" ;;
+            password|psk|passphrase)
+                pass="${value}" ;;
+            country)
+                value="$(tr '[:lower:]' '[:upper:]' <<<"${value//[[:space:]]/}")"
+                printf 'options cfg80211 ieee80211_regdom=%s\n' "${value}" >/etc/modprobe.d/rgos-wifi-country.conf
+                iw reg set "${value}" 2>/dev/null || true
+                echo "country=${value}" >>"${BOOT}/wifi-imported.txt"
+                log "Wi-Fi country: ${value}" ;;
+        esac
+    done < <(clean "${BOOT}/wifi.txt")
+    write_network "${ssid}" "${pass}"
+    rm -f "${BOOT}/wifi.txt"
+    sync
+}
+
+import_keys
+import_wifi

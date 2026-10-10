@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Wi-Fi
+Comment=Connect to a wireless network
+Exec=rgos-wifi
+Terminal=false
+Categories=Settings;

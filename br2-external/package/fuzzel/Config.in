@@ -1,0 +1,16 @@
+config BR2_PACKAGE_FUZZEL
+	bool "fuzzel"
+	depends on BR2_PACKAGE_WAYLAND
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	select BR2_PACKAGE_FCFT
+	select BR2_PACKAGE_FONTCONFIG
+	select BR2_PACKAGE_LIBPNG
+	select BR2_PACKAGE_LIBXKBCOMMON
+	select BR2_PACKAGE_PIXMAN
+	select BR2_PACKAGE_TLLIST
+	select BR2_PACKAGE_WAYLAND_PROTOCOLS
+	help
+	  Application launcher and dmenu replacement for wlroots-based
+	  Wayland compositors. Fully keyboard driven.
+
+	  https://codeberg.org/dnkl/fuzzel

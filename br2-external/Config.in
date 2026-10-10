@@ -1,0 +1,29 @@
+menu "RGOS"
+	comment "Board support"
+	config BR2_RGOS_LINUX_ROCKNIX_H700
+		bool "Apply the ROCKNIX H700 kernel patch set"
+		depends on BR2_LINUX_KERNEL
+		help
+		  Download the Allwinner H700 kernel patches (display engine,
+		  panel, backlight, OTG, ...) from the pinned ROCKNIX commit
+		  (RGOS_ROCKNIX_COMMIT in external.mk) and apply them to the
+		  kernel.
+
+	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-panel-firmware/Config.in"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-uboot-ddr3/Config.in"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-padsim/Config.in"
+
+	comment "Desktop"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-desktop/Config.in"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-padd/Config.in"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/labwc/Config.in"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/gtk-layer-shell/Config.in"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/sfwbar/Config.in"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/wlopm/Config.in"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/fuzzel/Config.in"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/wvkbd/Config.in"
+
+	comment "Apps"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/gtksourceview4/Config.in"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/mousepad/Config.in"
+endmenu

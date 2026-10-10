@@ -1,0 +1,26 @@
+#!/bin/bash
+# Change backlight brightness in 10% steps via logind (no root needed).
+#   rgos-brightness up|down|<percent>
+set -e -u -o pipefail
+
+dev="$(ls /sys/class/backlight | head -n1)"
+[[ -n "${dev}" ]] || exit 0
+
+max="$(cat "/sys/class/backlight/${dev}/max_brightness")"
+cur="$(cat "/sys/class/backlight/${dev}/brightness")"
+step=$(( max / 10 ))
+(( step < 1 )) && step=1
+
+case "${1:-}" in
+    up)   new=$(( cur + step )) ;;
+    down) new=$(( cur - step )) ;;
+    [0-9]*) new=$(( max * ${1} / 100 )) ;;
+    *) echo "usage: rgos-brightness up|down|<percent>" >&2; exit 2 ;;
+esac
+
+# Never go fully dark: a black screen looks like a crash
+(( new < step )) && new=${step}
+(( new > max )) && new=${max}
+
+busctl call org.freedesktop.login1 /org/freedesktop/login1/session/auto \
+    org.freedesktop.login1.Session SetBrightness ssu backlight "${dev}" "${new}"

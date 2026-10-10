@@ -1,0 +1,33 @@
+#!/bin/bash
+# On-screen keyboard (wvkbd).
+#   rgos-osk toggle     show/hide (Select on the pad, the panel's keyboard
+#                       button, Super+K). Goes through rgos-padd's osk mode
+#                       so the d-pad steps over the keys while it is shown.
+#   rgos-osk show|hide  used by rgos-padd's osk mode hooks
+set -u
+
+kbd=wvkbd-mobintl
+
+if ! pidof -q "${kbd}"; then
+    "${kbd}" --hidden -L 180 --fn "DejaVu Sans 12" >/dev/null 2>&1 &
+    sleep 0.3
+fi
+
+case "${1:-toggle}" in
+    show)
+        pkill -USR2 -x "${kbd}"
+        # Park the pointer on the centre of the "g" key (2nd of the four
+        # 45px rows in the bottom 180px of a 640x480 screen)
+        rgos-padctl warp 320 367
+        ;;
+    hide)
+        pkill -USR1 -x "${kbd}"
+        ;;
+    toggle)
+        rgos-padctl mode toggle-osk 2>/dev/null || kill -s RTMIN "$(pidof "${kbd}")"
+        ;;
+    *)
+        echo "usage: rgos-osk show|hide|toggle" >&2
+        exit 2
+        ;;
+esac

@@ -1,0 +1,9 @@
+config BR2_PACKAGE_WLOPM
+	bool "wlopm"
+	depends on BR2_PACKAGE_WAYLAND
+	help
+	  Turn Wayland outputs on/off (wlr-output-power-management),
+	  without removing them from the layout. Used for the power key
+	  and lid.
+
+	  https://git.sr.ht/~leon_plickat/wlopm

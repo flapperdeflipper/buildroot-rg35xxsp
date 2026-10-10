@@ -1,0 +1,43 @@
+# SD card layout for Allwinner H700 boards.
+#
+# The boot ROM loads the SPL from byte offset 8K, which collides with a GPT
+# partition array, so the card uses an MBR. The fixed disk signature gives a
+# stable root=PARTUUID=<sig>-02 no matter which SD slot enumerates first.
+
+image boot.vfat {
+	vfat {
+		label = "RGOS-BOOT"
+		files = {
+#BOOT_FILES#
+		}
+		file extlinux/extlinux.conf {
+			image = "extlinux.conf"
+		}
+	}
+	size = 64M
+}
+
+image #IMAGE_NAME# {
+	hdimage {
+		partition-table-type = "mbr"
+		disk-signature = #DISK_SIGNATURE#
+	}
+
+	partition spl {
+		in-partition-table = false
+		image = "#SPL_IMAGE#"
+		offset = 8K
+	}
+
+	partition boot {
+		partition-type = 0xC
+		bootable = true
+		image = "boot.vfat"
+		offset = 4M
+	}
+
+	partition rootfs {
+		partition-type = 0x83
+		image = "rootfs.ext4"
+	}
+}

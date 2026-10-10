@@ -1,0 +1,7 @@
+config BR2_PACKAGE_RGOS_PADSIM
+	bool "rgos-padsim"
+	select BR2_PACKAGE_LIBEVDEV
+	help
+	  Simulated handheld controls for the QEMU test image: replays
+	  button events from a virtio-serial port (bin/qemu-pad) on uinput
+	  devices that look like the RG35XX SP gamepad, keys and lid.

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Send a command to rgos-padd over its control FIFO:
+#   rgos-padctl mode nav|mouse|osk|passthrough|toggle-mouse|toggle-osk
+#   rgos-padctl warp <x> <y>        move the pointer to screen pixel x,y
+ctl="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/rgos-padd.ctl"
+[ -p "${ctl}" ] || { echo "rgos-padctl: rgos-padd is not running" >&2; exit 1; }
+# padd keeps the FIFO open; the timeout only matters if it just died
+printf '%s\n' "$*" | timeout 2 tee "${ctl}" >/dev/null

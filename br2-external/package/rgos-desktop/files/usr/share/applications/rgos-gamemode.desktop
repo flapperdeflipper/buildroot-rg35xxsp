@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Game Mode
+Comment=Release the gamepad to games (MENU+SELECT to return)
+Exec=rgos-padctl mode passthrough
+Terminal=false
+Categories=Settings;

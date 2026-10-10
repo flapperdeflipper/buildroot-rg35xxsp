@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+# vi: ft=bash
+# shellcheck shell=bash
+#
+# Smoke-test the QEMU image: boot headless from a fresh disk, then check the
+# system and the desktop over SSH while pressing simulated pad buttons.
+#
+# Usage:
+#   bin/test-qemu [--keep]     --keep: leave the VM running afterwards
+#
+# Screenshots of each step: tmp/qemu/test-*.png; serial log: tmp/qemu/serial.log
+#
+set -u -o pipefail
+
+BASEDIR="$(cd "$(dirname "${0}")/.." && pwd)"
+# shellcheck source=lib/common.sh
+source "${BASEDIR}/bin/lib/common.sh"
+
+STATE="${BASEDIR}/tmp/qemu"
+KEEP=0
+[[ "${1:-}" == "--keep" ]] && KEEP=1
+
+SSH=(ssh -F /dev/null -i "${BASEDIR}/.ssh/builder" -o IdentitiesOnly=yes -o IdentityAgent=none
+     -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
+     -o ConnectTimeout=5 -o BatchMode=yes -p 2222 user@127.0.0.1)
+PASS=0 FAIL=0
+FAILED=()
+
+function vm() { "${SSH[@]}" "${@}"; }
+
+# Run a command inside the desktop session's environment (Wayland socket)
+function gui() {
+    vm "export XDG_RUNTIME_DIR=/run/user/1000; export WAYLAND_DISPLAY=\$(basename \$(ls /run/user/1000/wayland-[0-9] | head -1)); ${*}"
+}
+
+function pad() { "${BASEDIR}/bin/qemu-pad" "${@}"; sleep "${PAD_SETTLE:-0.7}"; }
+function shot() { sleep "${SHOT_SETTLE:-1}"; "${BASEDIR}/bin/qemu-screenshot" "${STATE}/test-${1}.png" >/dev/null; }
+
+function check() {
+    local name="${1}"
+    shift
+    if "${@}" >/dev/null 2>&1; then
+        printf '  \e[32mPASS\e[0m %s\n' "${name}"
+        PASS=$((PASS + 1))
+    else
+        printf '  \e[31mFAIL\e[0m %s\n' "${name}"
+        FAIL=$((FAIL + 1))
+        FAILED+=("${name}")
+    fi
+}
+
+function mode_is() { [[ "$(vm cat /run/user/1000/rgos-padd.mode)" == "${1}" ]]; }
+function running() { vm pgrep -x "${1}"; }
+function not_running() { ! vm pgrep -x "${1}"; }
+function screen_is() { [[ "$(gui wlopm | awk '{print $2}' | sort -u)" == "${1}" ]]; }
+
+function wait_for() {
+
+    for i in $(seq 1 "${2:-20}"); do
+        vm pgrep -x "${1}" >/dev/null && return 0
+        sleep 0.5
+    done
+    return 1
+}
+
+function stop_vm() {
+    [[ -f "${STATE}/qemu.pid" ]] && kill "$(cat "${STATE}/qemu.pid")" 2>/dev/null
+    rm -f "${STATE}/qemu.pid"
+}
+
+stop_vm
+# Provision the boot partition like a real card: SSH key + a Wi-Fi network
+RGOS_WIFI_PASSWORD="test pass 123" "${BASEDIR}/bin/run-qemu" --fresh --headless \
+    --key "${BASEDIR}/.ssh/builder.pub" --wifi "Test Net" --country NL || exit 1
+[[ "${KEEP}" -eq 1 ]] || trap stop_vm EXIT
+
+log "Waiting for SSH (first boot grows the disk)..."
+for _ in $(seq 1 90); do
+    vm true 2>/dev/null && break
+    sleep 2
+done
+vm true || { log_err "No SSH after 180s; see ${STATE}/serial.log"; tail -30 "${STATE}/serial.log"; exit 1; }
+
+log "System"
+state="$(vm systemctl is-system-running --wait)"
+check "system state is running (got: ${state})" test "${state}" = running
+failed="$(vm systemctl --failed --no-legend --plain | awk '{print $1}' | tr '\n' ' ')"
+check "no failed units ${failed:+(${failed})}" test -z "${failed}"
+check "root fs grown on first boot" vm test -f /var/lib/rgos/growfs.done
+check "root fs larger than 4G" vm 'test "$(df --output=size -B1G / | tail -1)" -gt 4'
+check "zram swap active (zstd)" vm 'swapon --show=NAME --noheadings | grep -q zram0 && grep -q "\[zstd\]" /sys/block/zram0/comp_algorithm'
+check "locale is valid (no setlocale warnings)" vm 'test -z "$(LANG=en_US.UTF-8 bash -c true 2>&1)"'
+check "user can read the journal" vm 'journalctl -b -n1 --no-pager 2>&1 | grep -vq "insufficient permissions"'
+
+log "Security and provisioning"
+# We got in with the key provisioned on the boot partition
+check "SSH key imported from the boot partition" vm 'test "$(wc -l < /etc/ssh/authorized_keys/user)" -eq 1'
+check "sshd: key-only (no password / keyboard / empty logins)" vm 'c="$(sudo sshd -T)"; grep -qx "passwordauthentication no" <<<"$c" && grep -qx "kbdinteractiveauthentication no" <<<"$c" && grep -qx "permitemptypasswords no" <<<"$c" && grep -qx "authenticationmethods publickey" <<<"$c"'
+check "user has no password (local login)" vm 'test -z "$(sudo awk -F: "\$1==\"user\" {print \$2}" /etc/shadow)"'
+check "sudo works without password" vm 'sudo -n true'
+check "Wi-Fi network imported into iwd" vm 'sudo grep -qx "Passphrase=test pass 123" "/var/lib/iwd/=54657374204e6574.psk"'
+check "wifi.txt deleted from the boot partition" vm 'test ! -e /boot/wifi.txt'
+check "wifi-imported.txt has no password" vm 'grep -q "Test Net" /boot/wifi-imported.txt && ! grep -q "test pass" /boot/wifi-imported.txt'
+check "Wi-Fi country set" vm 'grep -q "ieee80211_regdom=NL" /etc/modprobe.d/rgos-wifi-country.conf'
+check "boot partition has README.txt" vm 'grep -q authorized_keys /boot/README.txt'
+check "boot report written to the boot partition" vm 'for i in $(seq 1 30); do test -s /boot/rgos-boot.log && exit 0; sleep 2; done; exit 1'
+check "/boot automount" vm 'ls /boot/Image'
+
+log "Desktop session"
+check "keymap data installed (labwc crashes without)" vm 'test -d /usr/share/X11/xkb/symbols'
+check "rgos-session.service active" vm systemctl is-active rgos-session.service
+for p in labwc sfwbar swaybg wvkbd-mobintl rgos-padd rgos-padsim; do
+    check "${p} running" wait_for "${p}"
+done
+check "session LANG is en_US.UTF-8" vm 'grep -qs LANG=en_US.UTF-8 /etc/locale.conf'
+check "padd grabbed the simulated pad" vm 'journalctl -b --no-pager | grep -q "rgos-padd: using .*rgos-padsim gamepad"'
+check "padd watches the lid" vm 'journalctl -b --no-pager | grep -q "rgos-padsim lid) as lid switch"'
+check "padd control FIFO exists" vm 'test -p /run/user/1000/rgos-padd.ctl'
+check "pad starts in mouse (pointer) mode" mode_is mouse
+check "mode file has no trailing newline (panel label)" vm 'test "$(wc -l < /run/user/1000/rgos-padd.mode)" -eq 0' 
+check "app menu lists terminal, files, notes" vm 'm="$(rgos-menu)"; grep -q "<openbox_pipe_menu>" <<<"$m" && grep -q "command=\"foot\"" <<<"$m" && grep -q pcmanfm <<<"$m" && grep -q rgos-notes <<<"$m"'
+check "no foot client/server entries in menu" vm '! rgos-menu | grep -q "Foot Client\|Foot Server"'
+SHOT_SETTLE=6 shot 01-desktop
+
+log "Main menu (Start)"
+gui rgos-padctl warp 200 200
+pad tap BTN_START
+shot 02-menu
+# keys mode: arrow down to the first entry (Terminal), Enter
+pad tap BTN_MODE
+check "Menu tap -> keys mode" mode_is nav
+pad tap BTN_DPAD_DOWN
+pad tap BTN_EAST
+check "Start -> Terminal opens foot" wait_for foot
+pad tap BTN_MODE
+check "Menu tap -> back to pointer mode" mode_is mouse
+shot 03-terminal
+
+log "Apps (opened from the main menu, like a user would)"
+# Start, keys mode, down to the Nth entry, Enter, back to pointer mode
+function menu_open() {
+    pad tap BTN_START BTN_MODE
+    for _ in $(seq 1 "${1}"); do pad tap BTN_DPAD_DOWN; done
+    pad tap BTN_EAST BTN_MODE
+}
+menu_open 2
+check "Menu -> Files opens PCManFM" wait_for pcmanfm
+shot 04-files
+menu_open 3
+check "Menu -> Notes opens Mousepad" wait_for mousepad
+check "Mousepad settings schema compiled" vm 'gsettings list-schemas | grep -q org.xfce.mousepad'
+shot 05-notes
+pad tap BTN_TR2
+shot 06-next-window
+before="$(vm "pgrep -c -x 'foot|pcmanfm|mousepad'")"
+pad combo BTN_MODE BTN_SOUTH
+sleep 1
+after="$(vm "pgrep -c -x 'foot|pcmanfm|mousepad'")"
+check "Menu+B closes the focused window (${before} -> ${after})" test "${after}" -lt "${before}"
+
+log "Pointer"
+gui rgos-padctl warp 100 100
+pad hold BTN_DPAD_RIGHT 600
+shot 07-pointer-moved
+pad tap BTN_EAST
+check "A clicks without breaking the session" running labwc
+
+log "On-screen keyboard"
+pad tap BTN_SELECT
+check "Select -> keyboard (osk) mode" mode_is osk
+pad tap BTN_DPAD_RIGHT BTN_DPAD_RIGHT
+shot 08-osk
+pad tap BTN_SOUTH
+check "B closes it, back to pointer mode" mode_is mouse
+
+log "Game mode"
+pad combo BTN_MODE BTN_SELECT
+check "Menu+Select -> passthrough" mode_is passthrough
+pad combo BTN_MODE BTN_SELECT
+check "Menu+Select again -> pointer mode" mode_is mouse
+
+log "Power menu"
+pad combo BTN_MODE BTN_START
+check "Menu+Start opens the power menu" wait_for fuzzel
+shot 09-power-menu
+pad tap BTN_WEST
+check "Esc closes it" not_running fuzzel
+
+log "Screen, lid, keys"
+pad tap KEY_VOLUMEUP
+check "volume key handled (session still up)" running labwc
+pad lid close
+sleep 1.5
+check "lid close turns the screen off" screen_is off
+pad lid open
+sleep 1.5
+check "lid open turns the screen back on" screen_is on
+pad tap KEY_POWER
+sleep 1.5
+check "power key turns the screen off" screen_is off
+pad tap KEY_POWER
+sleep 1.5
+check "power key turns it back on" screen_is on
+shot 10-final
+
+log "Stability"
+check "nothing crashed (no core dumps this boot)" vm '! journalctl -b --no-pager -o cat | grep -q "dumped core"'
+check "desktop session never restarted" vm 'test "$(systemctl show -p NRestarts --value rgos-session.service)" = 0'
+
+log "Logs"
+errors="$(vm journalctl -b -p err --no-pager -o cat | sort | uniq -c | sort -rn | head -15)"
+if [[ -n "${errors}" ]]; then
+    log_dim "journal errors (not counted as failures):"
+    printf '%s\n' "${errors}" | sed 's/^/      /'
+fi
+session_warnings="$(vm journalctl -b -u rgos-session --no-pager -o cat | grep -iE 'error|warn|fail' | sort | uniq -c | sort -rn | head -15)"
+if [[ -n "${session_warnings}" ]]; then
+    log_dim "desktop session warnings (not counted as failures):"
+    printf '%s\n' "${session_warnings}" | sed 's/^/      /'
+fi
+
+echo
+log "${PASS} passed, ${FAIL} failed — screenshots in ${STATE}/test-*.png"
+for f in "${FAILED[@]}"; do log_err "${f}"; done
+[[ "${KEEP}" -eq 1 ]] && log "VM left running: ssh -p 2222 user@localhost, stop with: kill \$(cat ${STATE}/qemu.pid)"
+[[ "${FAIL}" -eq 0 ]]

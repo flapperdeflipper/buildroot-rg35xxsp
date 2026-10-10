@@ -1,0 +1,9 @@
+# USB ethernet dongles and USB tethering from a phone
+[Match]
+Type=ether
+
+[Network]
+DHCP=yes
+
+[DHCPv4]
+RouteMetric=100

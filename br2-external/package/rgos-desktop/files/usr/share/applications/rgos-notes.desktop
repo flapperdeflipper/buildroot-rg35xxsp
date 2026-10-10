@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Notes
+Comment=Quick notes (Mousepad on ~/Notes)
+Exec=rgos-notes
+Icon=accessories-text-editor
+Categories=Utility;
+Terminal=false

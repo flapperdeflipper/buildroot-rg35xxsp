@@ -1,0 +1,8 @@
+# shellcheck shell=bash
+# Board metadata, sourced by boards/scripts/post-image.sh.
+# QEMU boots the kernel directly (bin/run-qemu passes Image + cmdline.txt);
+# the disk keeps the device's partition layout so root= stays the same.
+BOARD_IMAGE_BASENAME="rgos-qemu-arm64"
+BOARD_DTBS=""
+BOARD_DISK_SIGNATURE="0x52473335"
+BOARD_CMDLINE="root=PARTUUID=52473335-02 rootwait rw console=ttyAMA0 console=tty1 quiet loglevel=3"

@@ -1,0 +1,25 @@
+#!/bin/bash
+# Volume control for the hardware volume keys.
+#   rgos-volume up|down|mute|get
+# Uses $RGOS_MIXER if set, otherwise the first simple control found below.
+set -u
+
+control="${RGOS_MIXER:-}"
+if [[ -z "${control}" ]]; then
+    controls="$(amixer scontrols 2>/dev/null)"
+    for c in Master PCM "Line Out" DAC Headphone Speaker; do
+        if grep -q "'${c}'" <<<"${controls}"; then
+            control="${c}"
+            break
+        fi
+    done
+fi
+[[ -n "${control}" ]] || exit 0
+
+case "${1:-get}" in
+    up)   amixer -q sset "${control}" 5%+ unmute ;;
+    down) amixer -q sset "${control}" 5%- ;;
+    mute) amixer -q sset "${control}" toggle ;;
+    get)  amixer sget "${control}" | grep -o -m1 '\[[0-9]*%\]' | tr -d '[]' ;;
+    *)    echo "usage: rgos-volume up|down|mute|get" >&2; exit 2 ;;
+esac

@@ -1,0 +1,15 @@
+# RGOS desktop session, started by labwc (see rgos-session.service).
+# Copy to ~/.config/labwc/autostart to customise.
+
+# Wallpaper
+swaybg --mode fill --image /usr/share/rgos/wallpaper.png >/dev/null 2>&1 &
+
+# Panel: start menu, window list, Wi-Fi, Bluetooth, volume, battery, clock
+sfwbar -f /etc/rgos/sfwbar.config >/dev/null &
+
+# On-screen keyboard (hidden until SELECT / the panel's keyboard button)
+wvkbd-mobintl --hidden -L 180 --fn "DejaVu Sans 12" >/dev/null 2>&1 &
+
+# Handheld buttons -> pointer/keys. Without it the pad is dead: keep it alive.
+# (stderr goes to the journal: journalctl -u rgos-session)
+sh -c 'while :; do rgos-padd; sleep 1; done' >/dev/null &

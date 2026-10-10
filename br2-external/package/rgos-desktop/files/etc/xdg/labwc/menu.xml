@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  RGOS main menu: click the desktop, press Start on the pad, or Super+Space.
+  "Applications" is generated from installed .desktop files by rgos-menu, so
+  new apps show up automatically. Copy to ~/.config/labwc/menu.xml to edit.
+-->
+<openbox_menu>
+
+<menu id="root-menu" label="RGOS">
+  <item label="Terminal" icon="utilities-terminal">
+    <action name="Execute" command="foot" />
+  </item>
+  <item label="Files" icon="system-file-manager">
+    <action name="Execute" command="pcmanfm" />
+  </item>
+  <item label="Notes" icon="accessories-text-editor">
+    <action name="Execute" command="rgos-notes" />
+  </item>
+  <menu id="rgos-apps" label="Applications" execute="rgos-menu" />
+  <separator />
+  <item label="Wi-Fi">
+    <action name="Execute" command="rgos-wifi" />
+  </item>
+  <item label="On-screen keyboard">
+    <action name="Execute" command="rgos-osk toggle" />
+  </item>
+  <item label="Help">
+    <action name="Execute" command="foot --hold --title Help rgos-help" />
+  </item>
+  <separator />
+  <menu id="rgos-power" label="Power">
+    <item label="Screen off">
+      <action name="Execute" command="rgos-screen off" />
+    </item>
+    <item label="Game mode (release pad)">
+      <action name="Execute" command="rgos-padctl mode passthrough" />
+    </item>
+    <item label="Restart desktop">
+      <action name="Execute" command="sudo -n systemctl restart rgos-session.service" />
+    </item>
+    <item label="Reboot">
+      <action name="Execute" command="sudo -n systemctl reboot" />
+    </item>
+    <item label="Power off">
+      <action name="Execute" command="sudo -n systemctl poweroff" />
+    </item>
+  </menu>
+</menu>
+
+<menu id="client-menu">
+  <item label="Minimize"><action name="Iconify" /></item>
+  <item label="Maximize"><action name="ToggleMaximize" /></item>
+  <item label="Fullscreen"><action name="ToggleFullscreen" /></item>
+  <item label="Always on Top"><action name="ToggleAlwaysOnTop" /></item>
+  <item label="Close"><action name="Close" /></item>
+</menu>
+
+</openbox_menu>

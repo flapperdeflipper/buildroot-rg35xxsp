@@ -1,0 +1,9 @@
+config BR2_PACKAGE_MOUSEPAD
+	bool "mousepad"
+	depends on BR2_PACKAGE_LIBGTK3
+	select BR2_PACKAGE_GTKSOURCEVIEW4
+	help
+	  Simple GTK3 text editor (Xfce; the Raspberry Pi OS editor).
+	  RGOS uses it as its notes app.
+
+	  https://docs.xfce.org/apps/mousepad/start

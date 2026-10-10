@@ -1,0 +1,39 @@
+#!/bin/bash
+# Write a boot report to the FAT boot partition (/boot/rgos-boot.log), so a
+# boot can be diagnosed by putting the SD card in any computer: no serial
+# cable, network or screen needed. Run by rgos-bootlog.service after boot.
+set -u
+
+out=/boot/rgos-boot.log
+tmp="$(mktemp)"
+
+section() { printf '\n===== %s =====\n' "$*"; }
+
+{
+    echo "RGOS boot report — $(date -Is)"
+    section "system";        uname -a; cat /proc/cmdline; uptime; cat /etc/os-release
+    section "failed units";  systemctl --failed --no-pager
+    section "session";       systemctl status rgos-session.service --no-pager -l 2>&1 | head -40
+    section "drm";           ls -l /sys/class/drm/ /dev/dri/ 2>&1
+    for c in /sys/class/drm/card*-*; do
+        [[ -e "${c}/status" ]] && echo "${c##*/}: status=$(cat "${c}/status") enabled=$(cat "${c}/enabled" 2>/dev/null)"
+    done
+    section "backlight"
+    for b in /sys/class/backlight/*; do
+        [[ -d "${b}" ]] || continue
+        echo "${b##*/}: brightness=$(cat "${b}/brightness") actual=$(cat "${b}/actual_brightness") max=$(cat "${b}/max_brightness") bl_power=$(cat "${b}/bl_power")"
+    done
+    section "spi devices (panel)"
+    for d in /sys/bus/spi/devices/*; do
+        [[ -e "${d}" ]] || continue
+        echo "${d##*/}: modalias=$(cat "${d}/modalias") driver=$(basename "$(readlink -f "${d}/driver" 2>/dev/null)")"
+    done
+    section "deferred probes"; cat /sys/kernel/debug/devices_deferred 2>&1
+    section "modules";       lsmod
+    section "firmware";      ls -l /usr/lib/firmware/panels/ 2>&1
+    section "dmesg";         dmesg
+    section "journal (warnings and errors)"; journalctl -b -p warning --no-pager | tail -300
+} >"${tmp}" 2>&1
+
+cp "${tmp}" "${out}" && sync
+rm -f "${tmp}"

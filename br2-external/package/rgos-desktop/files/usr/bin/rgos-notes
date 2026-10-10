@@ -1,0 +1,5 @@
+#!/bin/sh
+# Notes: Mousepad on ~/Notes/notes.txt (any file in ~/Notes works too)
+mkdir -p "${HOME}/Notes"
+[ -e "${HOME}/Notes/notes.txt" ] || printf 'Notes\n=====\n\n' >"${HOME}/Notes/notes.txt"
+exec mousepad "${HOME}/Notes/notes.txt" "$@"

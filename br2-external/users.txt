@@ -1,0 +1,5 @@
+# username uid group gid password home shell groups comment
+# "user" has no password: it logs in on the device itself (autologin desktop,
+# console). Remote access is SSH with keys only, provisioned via the boot
+# partition (authorized_keys); sudo needs no password (sudoers.d/rgos).
+user 1000 user 1000 - /home/user /bin/bash sudo,input,video,audio,render,dialout,plugdev,netdev,bluetooth,systemd-journal RGOS user

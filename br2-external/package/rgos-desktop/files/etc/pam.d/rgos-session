@@ -1,0 +1,8 @@
+# PAM stack for the autologin desktop session (rgos-session.service).
+# systemd only opens a session here (no authentication); pam_systemd
+# registers it with logind, which provides seat access and XDG_RUNTIME_DIR.
+account   required  pam_unix.so
+session   required  pam_limits.so
+session   required  pam_env.so
+session   required  pam_unix.so
+session   required  pam_systemd.so

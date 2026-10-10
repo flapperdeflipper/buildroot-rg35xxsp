@@ -1,0 +1,16 @@
+[Unit]
+Description=Compressed swap in RAM (zram)
+DefaultDependencies=no
+After=systemd-modules-load.service
+Before=swap.target
+ConditionPathExists=!/dev/zram0
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/sbin/modprobe zram num_devices=1
+ExecStart=/bin/sh -c 'zramctl /dev/zram0 --algorithm zstd --size 512M && mkswap /dev/zram0 && swapon --priority 100 /dev/zram0'
+ExecStop=/sbin/swapoff /dev/zram0
+
+[Install]
+WantedBy=swap.target

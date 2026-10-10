@@ -1,0 +1,11 @@
+# Locally computed (files fetched from the pinned ROCKNIX commit)
+sha256  178895af5eb14e3cd0ddfbc18d86278d30376f3a535a5bab96e06bf5658f7248  anbernic%2Crg28xx-panel.panel
+sha256  1400dd6c9b9d64bc618da7b544a029c5718af4a8d712894b343280796dc2bcea  anbernic%2Crg34xx-panel.panel
+sha256  929432ef1971f7332c8bd3cad6837c1bb6d0a8d5f7176e206e1eea554a8b2c09  anbernic%2Crg34xx-sp-panel.panel
+sha256  3ecd82f153a07ce86097a6cf3326484b235a9d6c5556e5ad56299a490096d3c2  anbernic%2Crg34xx-sp-v2-panel.panel
+sha256  9aaee6fe776a45cc83596bc8df76184c2f3fba8be1b551b2b8224b5bc347afaa  anbernic%2Crg35xx-plus-panel.panel
+sha256  f7d3f0cd98be93c95e2af2361f8f309871ae6aea4f9374c1843ac1ca35a7f699  anbernic%2Crg35xx-plus-rev6-panel.panel
+sha256  2251794f1454376faac2c50438a517c1ef76501509b6f4d505a2c5d64bcf6e4f  anbernic%2Crg35xx-sp-v2-panel.panel
+sha256  519eae7a9dfe39435581cc53559b10362dc00e7f58a1c87ad0770a61299d39ed  anbernic%2Crg40xx-panel.panel
+sha256  95bc84fdbbabdaa29a4a5934155c519a5855f19f4d26e7a4b957bb8176a1b743  anbernic%2Crg40xx-v2-panel.panel
+sha256  c8f38b80281e3d90dc68a6bd2c92ccc235e85c3cb4c2ef6db8606b7cf37658d7  anbernic%2Crgcubexx-panel.panel

@@ -1,0 +1,106 @@
+<?xml version="1.0"?>
+<!--
+  RGOS labwc configuration (window manager). Copy to ~/.config/labwc/rc.xml
+  to customise; reload with: labwc -r
+
+  Windows have title bars with minimise / maximise / close buttons, and open
+  maximised by default (small screen). Click the desktop for the main menu.
+  rgos-padd turns the handheld buttons into the keys bound below.
+-->
+<labwc_config>
+
+  <core>
+    <decoration>server</decoration>
+    <gap>0</gap>
+  </core>
+
+  <theme>
+    <titlebar>
+      <layout>menu:iconify,max,close</layout>
+      <showTitle>yes</showTitle>
+    </titlebar>
+    <cornerRadius>4</cornerRadius>
+    <keepBorder>yes</keepBorder>
+    <dropShadows>no</dropShadows>
+    <font place="ActiveWindow"><name>DejaVu Sans</name><size>9</size><weight>bold</weight></font>
+    <font place="InactiveWindow"><name>DejaVu Sans</name><size>9</size></font>
+    <font place="MenuHeader"><name>DejaVu Sans</name><size>10</size><weight>bold</weight></font>
+    <font place="MenuItem"><name>DejaVu Sans</name><size>10</size></font>
+    <font place="OnScreenDisplay"><name>DejaVu Sans</name><size>10</size></font>
+  </theme>
+
+  <windowSwitcher preview="yes" outlines="yes">
+    <osd show="yes" style="classic" />
+  </windowSwitcher>
+
+  <placement>
+    <policy>cascade</policy>
+  </placement>
+
+  <!-- 640x480: every normal window starts maximised -->
+  <windowRules>
+    <windowRule identifier="*" type="normal">
+      <action name="Maximize" />
+    </windowRule>
+  </windowRules>
+
+  <keyboard>
+    <default />
+    <repeatRate>30</repeatRate>
+    <repeatDelay>400</repeatDelay>
+    <!-- Main menu (Start on the pad, Super+Space on a keyboard) -->
+    <keybind key="W-space">
+      <action name="ShowMenu" menu="root-menu" />
+    </keybind>
+    <keybind key="W-Return">
+      <action name="Execute" command="foot" />
+    </keybind>
+    <keybind key="W-e">
+      <action name="Execute" command="pcmanfm" />
+    </keybind>
+    <keybind key="W-k">
+      <action name="Execute" command="rgos-osk toggle" />
+    </keybind>
+    <keybind key="W-Escape">
+      <action name="Execute" command="rgos-power-menu" />
+    </keybind>
+    <!-- Hardware keys -->
+    <keybind key="XF86AudioRaiseVolume" allowWhenLocked="yes">
+      <action name="Execute" command="rgos-volume up" />
+    </keybind>
+    <keybind key="XF86AudioLowerVolume" allowWhenLocked="yes">
+      <action name="Execute" command="rgos-volume down" />
+    </keybind>
+    <keybind key="XF86AudioMute" allowWhenLocked="yes">
+      <action name="Execute" command="rgos-volume mute" />
+    </keybind>
+    <keybind key="XF86MonBrightnessUp">
+      <action name="Execute" command="rgos-brightness up" />
+    </keybind>
+    <keybind key="XF86MonBrightnessDown">
+      <action name="Execute" command="rgos-brightness down" />
+    </keybind>
+    <!-- Short press: screen on/off; logind powers off on a long press -->
+    <keybind key="XF86PowerOff" allowWhenLocked="yes">
+      <action name="Execute" command="rgos-screen toggle" />
+    </keybind>
+  </keyboard>
+
+  <mouse>
+    <default />
+  </mouse>
+
+  <libinput>
+    <!-- rgos-padd steps the pointer key by key over the on-screen keyboard;
+         acceleration would make those steps uneven -->
+    <device category="rgos-padd pointer">
+      <accelProfile>flat</accelProfile>
+      <pointerSpeed>0.0</pointerSpeed>
+    </device>
+    <device category="touchpad">
+      <tap>yes</tap>
+      <naturalScroll>yes</naturalScroll>
+    </device>
+  </libinput>
+
+</labwc_config>

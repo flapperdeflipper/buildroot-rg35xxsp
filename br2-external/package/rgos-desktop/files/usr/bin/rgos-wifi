@@ -1,0 +1,76 @@
+#!/bin/bash
+# WiFi picker: scan with iwd (D-Bus), choose a network in fuzzel, enter the
+# passphrase (on-screen keyboard: SELECT), connect. For anything fancier use
+# `iwctl` in a terminal.
+set -u
+
+IWD=net.connman.iwd
+
+note() {
+    printf '%s\n' "${1}" | fuzzel --dmenu --prompt "WiFi: " --lines 1 >/dev/null
+}
+
+objects() {
+    busctl --json=short call "${IWD}" / org.freedesktop.DBus.ObjectManager GetManagedObjects
+}
+
+station="$(objects | jq -r '.data[0] | to_entries[] | select(.value["net.connman.iwd.Station"]) | .key' | head -n1)"
+if [[ -z "${station}" ]]; then
+    note "No WiFi device found (is iwd running?)"
+    exit 1
+fi
+dev="$(objects | jq -r --arg s "${station}" '.data[0][$s]["net.connman.iwd.Device"].Name.data')"
+
+# Scan and wait (max ~6s) for it to finish
+busctl call "${IWD}" "${station}" "${IWD}.Station" Scan 2>/dev/null
+for _ in $(seq 1 30); do
+    [[ "$(busctl get-property "${IWD}" "${station}" "${IWD}.Station" Scanning)" == "b false" ]] && break
+    sleep 0.2
+done
+
+objs="$(objects)"
+ordered="$(busctl --json=short call "${IWD}" "${station}" "${IWD}.Station" GetOrderedNetworks)"
+
+# One line per network: <connected> <known> <type> <dBm> <name>
+mapfile -t nets < <(jq -rn --argjson o "${objs}" --argjson n "${ordered}" '
+    $n.data[0][] as [$path, $sig]
+    | $o.data[0][$path]["net.connman.iwd.Network"] as $net
+    | select($net != null)
+    | [ (if $net.Connected.data then "1" else "0" end),
+        (if $net.KnownNetwork then "1" else "0" end),
+        $net.Type.data, (($sig / 100) | floor | tostring), $net.Name.data ] | join("\t")')
+
+entries=("Disconnect")
+for n in "${nets[@]}"; do
+    IFS=$'\t' read -r connected _known type dbm name <<<"${n}"
+    mark=" "
+    [[ "${connected}" == 1 ]] && mark="*"
+    entries+=("$(printf '%s %-24s %-5s %s dBm' "${mark}" "${name}" "${type}" "${dbm}")")
+done
+
+idx="$(printf '%s\n' "${entries[@]}" | fuzzel --dmenu --index --prompt "WiFi (${dev}): " --lines 10)" || exit 0
+[[ -n "${idx}" ]] || exit 0
+
+if [[ "${idx}" == 0 ]]; then
+    iwctl station "${dev}" disconnect
+    exit 0
+fi
+
+IFS=$'\t' read -r connected known type _dbm name <<<"${nets[$((idx - 1))]}"
+[[ "${connected}" == 1 ]] && exit 0
+
+rc=0
+if [[ "${known}" == 1 || "${type}" == open ]]; then
+    out="$(iwctl station "${dev}" connect "${name}" 2>&1)" || rc=$?
+elif [[ "${type}" == psk ]]; then
+    pass="$(fuzzel --dmenu --password --prompt-only "Passphrase for ${name}: " </dev/null)" || exit 0
+    out="$(iwctl --passphrase "${pass}" station "${dev}" connect "${name}" 2>&1)" || rc=$?
+else
+    note "${type} networks need iwctl / a config in /var/lib/iwd"
+    exit 1
+fi
+
+if [[ "${rc}" -ne 0 ]]; then
+    note "Failed: ${out:-connect to ${name}}"
+    exit 1
+fi

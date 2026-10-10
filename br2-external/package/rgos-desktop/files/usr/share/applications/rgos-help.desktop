@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Help
+Comment=Button cheat sheet
+Exec=foot --hold --title Help rgos-help
+Terminal=false
+Categories=Settings;

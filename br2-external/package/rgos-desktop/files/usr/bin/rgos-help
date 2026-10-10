@@ -1,0 +1,29 @@
+#!/bin/sh
+# Button cheat sheet (Help in the menu).
+cat <<'EOF'
+  RGOS handheld controls
+  ------------------------------------------------------------------
+  The pad drives the mouse pointer by default (panel shows "mouse").
+
+  D-pad      move the pointer           A   click     B   right-click
+  L1 / R1    scroll up / down           X   middle-click
+  L2 / R2    previous / next window     Y   Esc
+  START      main menu (apps, Wi-Fi, power)
+  SELECT     on-screen keyboard: d-pad jumps key to key, A types,
+             START = Enter, B/SELECT closes it
+  MENU tap   switch pointer <-> keys mode (d-pad = arrow keys,
+             A = Enter, B = Esc, X = Backspace, Y = Space, L1/R1 = Tab)
+
+  MENU held +  B close window      X Wi-Fi        START power menu
+               up/down brightness  A Ctrl+C       Y paste
+               L1/R1 back/forward  L2/R2 zoom     SELECT game mode
+  Game mode gives the pad to games; MENU+SELECT returns.
+
+  Power key: screen on/off (hold: power off)     Lid: screen off/on
+
+  Keyboard: Super+Space menu, Super+Enter terminal, Super+E files,
+            Super+K keyboard, Alt+Tab switch, Alt+F4 close
+  Remap buttons: cp /etc/rgos/padd.conf ~/.config/rgos/
+                 then: pkill -HUP rgos-padd
+  ------------------------------------------------------------------
+EOF

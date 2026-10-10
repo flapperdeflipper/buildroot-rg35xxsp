@@ -1,0 +1,19 @@
+# RGOS boot configuration (read by U-Boot from the RGOS-BOOT partition).
+#
+# The RG35XX SP shipped with two LCD panel revisions. Current units (stock
+# firmware panel driver "fog_fj035fhd05_v1") have the v2 panel, the default.
+# If the screen stays black or garbled, change DEFAULT to rgos-v1.
+DEFAULT rgos
+TIMEOUT 0
+
+LABEL rgos
+  MENU LABEL RGOS (RG35XX SP, v2 panel)
+  LINUX /Image
+  FDT /sun50i-h700-anbernic-rg35xx-sp-v2-panel.dtb
+  APPEND #CMDLINE#
+
+LABEL rgos-v1
+  MENU LABEL RGOS (RG35XX SP, original panel)
+  LINUX /Image
+  FDT /sun50i-h700-anbernic-rg35xx-sp.dtb
+  APPEND #CMDLINE#

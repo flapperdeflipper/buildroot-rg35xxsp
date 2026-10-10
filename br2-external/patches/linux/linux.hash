@@ -1,0 +1,32 @@
+# From https://cdn.kernel.org/pub/linux/kernel/v7.x/sha256sums.asc
+sha256  f9fef3d14c0df53819026f4be74459835c2a0b0dcbf5b5bbd9ea19f0829402b3  linux-7.2.tar.xz
+
+# ROCKNIX H700 patches, from the pinned commit in external.mk (locally computed)
+sha256  3c368ef17a3632532da37c8a126fb82cdd6b21b83333abf2094914cce37a83db  0002-rg35xx-enable-HDMI-LCD.patch
+sha256  4ae3ed690275570d8f3f67342140d60672f961d626b57dd092d2bbdc8a5273ec  0003-Update-sun8i_tcon_top.c.patch
+sha256  a1d22a410c1efb12dfedf59b34d2496a721039a4ae70a1861e3f0fbd89b4b59a  0007-rg35xx-add-GPU-opp.patch
+sha256  04851821e2a351f6845807db3685e5e3e458133f4e56ac57225e26704f18ba54  0008-v8_20260804_james_hilliard1_introduce_allwinner_h616_pwm_controller.patch
+sha256  68a4556c4963059adc54b0d2ae7aff66daab22a03aa8e8cb19ece36fd293d44a  0010-rg35xx-enable-pwm-backlight.patch
+sha256  177c5ad853763d70e8fc07984493624c7ff97f6a71ec22ab461eb28980e6bedb  0040-Revert-usb-musb-Fix-hardware-lockup-on-first-Rx-endp.patch
+sha256  0ead7c3b9ba5d316b33af6a1d05f67a16c3d636040df34275fdb6ddc4945cfa6  0110-v2_20250226_kikuchan98_drm_panel_add_generic_mipi_panel_driver.patch
+sha256  c90f475998b0ec0312f65ffbf8c818904686b997c1895247dfe5bcaf9eccac66  0111-rg35xx-2024-use-panel-mipi-dpi-spi-driver.patch
+sha256  52baeb041d292e32b8836be69f52fbbd18cff104617fdffc6090428c44dfec3b  0124-battery-name.patch
+sha256  0e51972c8b948230f648a4241796dee60485c4a7876d189532b604b0e5be743b  0126-20241018_macroalpha82_rg35xx_add_additional_hardware_support.patch
+sha256  46fbac702ffcc312502f3009d3a6deb8822f910a6b97d9c3dc90129d3d9bd9ab  0127-enable-mmc1-for-RG35XX-2024.patch
+sha256  25efd76a799b1ed2075363501381dd6e33a5ab12c61f5771c3bcef8d826fa514  0151-phy-fix-OTG-host-mode.patch
+sha256  ecfe8291e86eb5882c5298a3dfcae99cd2497e61e9770ea0b0b4b5f463b2a76b  0152-rg35xx-2024-enable-usb-otg.patch
+sha256  6e9a676bfa1dac06846655146d135c09b68360cf9a58ef11833169fb7627a82f  0153-enable-rgb-leds.patch
+sha256  742c8b43006ea8f572acbf43b47a3135aac52a952607d06a4051375ef0672ab8  0154-rocknix-dt-id.patch
+sha256  d12bc0295b2fe954fe9d91646f68a6eb0483c36500543458610b6336717e98ef  0155-sun4i-set-rgb-connector-as-DSI.patch
+sha256  7c7bbafe8a09dfc6b670064a3a08ce428f26b1862585b5520b32f6b866818eaf  0156-rg35xx-plus-add-pcf8563-rtc.patch
+sha256  d8412bac68e4c9fb4ae35e75783f32a74bd319a45b7b3f4db9630447bcfc32d4  0157-input-axp20x-pek-do-not-report-the-key-press-that-woke-the-system.patch
+sha256  880336a569661a93e5e384fdd58c2c7470c203cc1cfe83d4cfc7e05be89a8c9e  0158-mmc-sunxi-mmc-mask-data0-when-updating-the-clock-on-h616-emmc.patch
+sha256  16d40fccc7d0df5ab4b24832d5caacae31419bd2e0ef491bfe980e082fa675b9  0159-arm64-dts-rg35xx-2024-keep-the-second-sd-card-powered.patch
+sha256  35856ea76ef68ea25c49103fcf96279f88daf3ee18fce0ccf29ab8c2111f9f47  0160-phy-sun4i-usb-disable-the-clock-that-was-enabled.patch
+sha256  dd17c2e206771ef6a6e23dfec7b3e29daf0581d4e0210c65f9098fe7c0da4369  0161-drm-sun4i-gate-the-display-pipeline-across-system-suspend.patch
+sha256  defdd48d2bfa83ff7ea01238fcbf35488120fde753d0c75652ab83cfb7a244a4  0162-pinctrl-sunxi-release-the-lcd0-pads-while-the-panel-is-off.patch
+sha256  2e502cf3cdd78a5d7e3a87a9a433d5f46168c6cebef70d9a69bd492385c8dab5  0163-asoc-sun4i-codec-suspend-the-codec-and-switch-the-amplifier-supply.patch
+sha256  8cb23b7d25f6a110116ee070970c0aeaaa488b348a80e94e7d3a120b76f68e89  0200-h700-update-opps.patch
+sha256  cbc3b96a8b07063dcb341ce6b4dbc6f2bc3c1134f3a66ce9fd9e463270576283  0204-dts-Enable-hdmi-sound.patch
+sha256  110df51e24103d0c73da901ef8222a74dfddbfcc9c826f0a1e2039ecb5ebd6ba  0210-h616-cpu-opp-mark-480MHz-as-suspend-opp.patch
+sha256  ea36a3fe08ee3e65f895cad85e3cd478a63312a85414549289b0cbc19ed8b8f9  0901-dts-rg35xx-2024-fix-led-1-color.patch

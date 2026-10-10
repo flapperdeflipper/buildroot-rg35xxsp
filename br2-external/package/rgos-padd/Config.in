@@ -1,0 +1,7 @@
+config BR2_PACKAGE_RGOS_PADD
+	bool "rgos-padd"
+	select BR2_PACKAGE_LIBEVDEV
+	help
+	  Gamepad-to-desktop input daemon: turns handheld buttons into
+	  keyboard and mouse events (uinput) with nav, mouse and
+	  passthrough modes. Source in src/padd.

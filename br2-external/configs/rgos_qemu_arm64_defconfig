@@ -1,0 +1,32 @@
+# QEMU arm64 "virt" test machine — same userspace as the handheld, virtio
+# hardware. Appended after rgos_common_defconfig by build-image.sh.
+# Run with bin/run-qemu; drive the simulated pad with bin/qemu-pad.
+
+# Same CPU tuning as the RG35XX SP, so the userspace matches (runs fine on
+# QEMU's cortex-a72/max and under hvf on Apple Silicon)
+BR2_cortex_a53=y
+
+# Kernel — plain Linux 7.2 (no H700 patches), virtio drivers built in
+BR2_LINUX_KERNEL=y
+BR2_LINUX_KERNEL_CUSTOM_TARBALL=y
+BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.2.tar.xz"
+BR2_LINUX_KERNEL_USE_ARCH_DEFAULT_CONFIG=y
+BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_RGOS_PATH)/boards/common/linux.fragment $(BR2_EXTERNAL_RGOS_PATH)/boards/qemu/linux.fragment"
+BR2_LINUX_KERNEL_NEEDS_HOST_OPENSSL=y
+BR2_LINUX_KERNEL_INSTALL_TARGET=y
+
+# Graphics: virtio-gpu has no 3D on macOS QEMU, so render in software
+# (llvmpipe through kms_swrast; virgl for Linux hosts with virtio-gpu-gl)
+BR2_PACKAGE_MESA3D_LLVM=y
+BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_LLVMPIPE=y
+BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_VIRGL=y
+
+# Simulated handheld buttons over virtio-serial (bin/qemu-pad)
+BR2_PACKAGE_RGOS_PADSIM=y
+
+# Image layout + post-image args (board dir)
+BR2_ROOTFS_POST_SCRIPT_ARGS="$(BR2_EXTERNAL_RGOS_PATH)/boards/qemu qemu-arm64"
+BR2_TARGET_GENERIC_GETTY_PORT="ttyAMA0"
+
+# QEMU-only tweaks (software cursor for screenshots)
+BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_RGOS_PATH)/rootfs_overlay $(BR2_EXTERNAL_RGOS_PATH)/boards/qemu/rootfs_overlay"

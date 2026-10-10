@@ -1,0 +1,2 @@
+# Start rgos-padsim when bin/run-qemu's virtio-serial port "rgos.pad" shows up
+SUBSYSTEM=="virtio-ports", ATTR{name}=="rgos.pad", TAG+="systemd", ENV{SYSTEMD_WANTS}+="rgos-padsim.service"

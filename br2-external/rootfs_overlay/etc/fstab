@@ -1,0 +1,2 @@
+# <file system>   <mount pt>  <type>  <options>                                        <dump> <pass>
+LABEL=RGOS-BOOT   /boot       vfat    noatime,nofail,umask=0022,x-systemd.automount    0      2

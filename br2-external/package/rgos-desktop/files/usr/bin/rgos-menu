@@ -1,0 +1,61 @@
+#!/bin/bash
+# labwc pipe menu: installed applications grouped by category.
+# Reads /usr/share/applications and ~/.local/share/applications.
+set -u
+# bash 5.2: '&' in ${var//pat/repl} would insert the match; we want it literal
+shopt -u patsub_replacement 2>/dev/null
+
+xml_escape() {
+    local s="${1//&/&amp;}"
+    s="${s//</&lt;}"
+    s="${s//>/&gt;}"
+    s="${s//\"/&quot;}"
+    printf '%s' "${s}"
+}
+
+category() {
+    case ";${1};" in
+        *";Settings;"*|*";System;"*)                  echo "System" ;;
+        *";Network;"*)                                echo "Internet" ;;
+        *";AudioVideo;"*|*";Audio;"*|*";Video;"*)     echo "Sound &amp; Video" ;;
+        *";Graphics;"*)                               echo "Graphics" ;;
+        *";Development;"*)                            echo "Programming" ;;
+        *";Game;"*)                                   echo "Games" ;;
+        *";Office;"*)                                 echo "Office" ;;
+        *";Education;"*)                              echo "Education" ;;
+        *)                                            echo "Accessories" ;;
+    esac
+}
+
+declare -A entries
+for f in /usr/share/applications/*.desktop "${HOME}"/.local/share/applications/*.desktop; do
+    [[ -f "${f}" ]] || continue
+    # Only the [Desktop Entry] group; first Name/Exec/... wins
+    eval "$(awk -F= '
+        /^\[/ { section = $0; next }
+        section != "[Desktop Entry]" { next }
+        /^(Name|Exec|Categories|NoDisplay|Hidden|Terminal|Type)=/ && !seen[$1]++ {
+            v = substr($0, length($1) + 2); gsub(/\x27/, "\x27\\\x27\x27", v)
+            printf "%s=\x27%s\x27\n", "de_" $1, v
+        }' "${f}")"
+    if [[ "${de_Type:-Application}" != Application || "${de_NoDisplay:-}" == true || "${de_Hidden:-}" == true \
+          || -z "${de_Name:-}" || -z "${de_Exec:-}" ]]; then
+        unset de_Name de_Exec de_Categories de_NoDisplay de_Hidden de_Terminal de_Type
+        continue
+    fi
+    cmd="$(sed -E 's/ ?%[fFuUdDnNickvm]//g' <<<"${de_Exec}")"
+    [[ "${de_Terminal:-}" == true ]] && cmd="foot ${cmd}"
+    cat="$(category "${de_Categories:-}")"
+    entries["${cat}"]+="$(printf '    <item label="%s"><action name="Execute" command="%s" /></item>\n' \
+        "$(xml_escape "${de_Name}")" "$(xml_escape "${cmd}")")"$'\n'
+    unset de_Name de_Exec de_Categories de_NoDisplay de_Hidden de_Terminal de_Type
+done
+
+echo '<openbox_pipe_menu>'
+mapfile -t cats < <(printf '%s\n' "${!entries[@]}" | sort)
+for cat in "${cats[@]}"; do
+    printf '  <menu id="rgos-apps-%s" label="%s">\n' "${cat//[^A-Za-z]/}" "${cat}"
+    sort <<<"${entries[${cat}]}" | grep -v '^$'
+    echo '  </menu>'
+done
+echo '</openbox_pipe_menu>'

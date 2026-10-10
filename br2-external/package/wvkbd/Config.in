@@ -1,0 +1,14 @@
+config BR2_PACKAGE_WVKBD
+	bool "wvkbd"
+	depends on BR2_PACKAGE_WAYLAND
+	depends on BR2_INSTALL_LIBSTDCPP # pango
+	depends on BR2_TOOLCHAIN_HAS_THREADS # pango
+	depends on BR2_USE_WCHAR # pango
+	select BR2_PACKAGE_CAIRO
+	select BR2_PACKAGE_LIBXKBCOMMON
+	select BR2_PACKAGE_PANGO
+	help
+	  On-screen keyboard for wlroots compositors (layer-shell +
+	  virtual-keyboard protocols). Installed as wvkbd-mobintl.
+
+	  https://github.com/jjsullivan5196/wvkbd

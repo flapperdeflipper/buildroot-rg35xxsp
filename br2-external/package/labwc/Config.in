@@ -1,0 +1,15 @@
+config BR2_PACKAGE_LABWC
+	bool "labwc"
+	depends on BR2_PACKAGE_WLROOTS
+	select BR2_PACKAGE_CAIRO
+	select BR2_PACKAGE_LIBGLIB2
+	select BR2_PACKAGE_LIBPNG
+	select BR2_PACKAGE_LIBXML2
+	select BR2_PACKAGE_PANGO
+	select BR2_PACKAGE_XKEYBOARD_CONFIG # runtime: keymaps (crashes without)
+	help
+	  Openbox-like stacking Wayland compositor (the window manager
+	  of the Raspberry Pi OS desktop): title bars with buttons,
+	  root menu, keyboard/mouse bindings, XWayland.
+
+	  https://labwc.github.io

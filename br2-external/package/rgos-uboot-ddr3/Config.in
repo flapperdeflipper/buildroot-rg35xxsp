@@ -1,0 +1,10 @@
+config BR2_PACKAGE_RGOS_UBOOT_DDR3
+	bool "rgos-uboot-ddr3"
+	depends on BR2_TARGET_UBOOT
+	depends on BR2_TARGET_UBOOT_BUILD_SYSTEM_KCONFIG
+	help
+	  Build U-Boot a second time with LPDDR3 DRAM parameters, for H700
+	  units that shipped with LPDDR3 instead of LPDDR4. Uses the same
+	  source and defconfig as the main U-Boot, plus
+	  boards/h700/uboot-ddr3.fragment. Installs
+	  u-boot-sunxi-with-spl-lpddr3.bin into the images directory.

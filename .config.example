@@ -1,0 +1,11 @@
+# Local build overrides, appended after the board defconfig by
+# bin/build-image.sh (last value wins). Copy to .config — it's gitignored.
+
+# Root password (empty = root login disabled on the console)
+# BR2_TARGET_GENERIC_ROOT_PASSWD="secret"
+
+# Timezone
+# BR2_TARGET_LOCALTIME="Europe/Amsterdam"
+
+# Extra packages, e.g. for the SDR roadmap item
+# BR2_PACKAGE_LIBRTLSDR=y

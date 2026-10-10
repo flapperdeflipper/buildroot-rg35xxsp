@@ -1,0 +1,47 @@
+ package/wlroots/wlroots.hash | 4 ++--
+ package/wlroots/wlroots.mk   | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+From 8f1c48a1de58475a0d50443cfb951eea2508a2df Mon Sep 17 00:00:00 2001
+From: RGOS <noreply@localhost>
+Date: Fri, 9 Oct 2026 23:44:20 +0200
+Subject: [PATCH] package/wlroots: bump to version 0.20.1
+
+labwc 0.20.x requires wlroots >= 0.20.1 to avoid bugs fixed in
+https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/5325
+
+Signature checked with key 34FF9526CFEF0E97A340E2E40FDE7BE0E88F5E48.
+---
+ package/wlroots/wlroots.hash | 4 ++--
+ package/wlroots/wlroots.mk   | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/package/wlroots/wlroots.hash b/package/wlroots/wlroots.hash
+index cd1b83e6..38d78303 100644
+--- a/package/wlroots/wlroots.hash
++++ b/package/wlroots/wlroots.hash
+@@ -1,7 +1,7 @@
+ # Locally calculated after checking pgp signature
+-# https://gitlab.freedesktop.org/wlroots/wlroots/-/releases/0.20.0/downloads/wlroots-0.20.0.tar.gz.sig
++# https://gitlab.freedesktop.org/wlroots/wlroots/-/releases/0.20.1/downloads/wlroots-0.20.1.tar.gz.sig
+ # with key 34FF9526CFEF0E97A340E2E40FDE7BE0E88F5E48 "emersion <contact@emersion.fr>"
+-sha256  33f52414e1b280839aeb70786f0ae2c9f54e27ad4873108d86270a2f89c4934b  wlroots-0.20.0.tar.gz
++sha256  a8541187baecaa2620938afacde88266cb7efa5928cb09d579d8efb07bc4901b  wlroots-0.20.1.tar.gz
+ 
+ # Hashes for license files:
+ sha256  35d427c043dcafe8893b9e7247348f599847c81d9a067703587c80707f3d58df  LICENSE
+diff --git a/package/wlroots/wlroots.mk b/package/wlroots/wlroots.mk
+index 5ce634d4..95a2a1f2 100644
+--- a/package/wlroots/wlroots.mk
++++ b/package/wlroots/wlroots.mk
+@@ -4,7 +4,7 @@
+ #
+ ################################################################################
+ 
+-WLROOTS_VERSION = 0.20.0
++WLROOTS_VERSION = 0.20.1
+ WLROOTS_SITE = https://gitlab.freedesktop.org/wlroots/wlroots/-/releases/$(WLROOTS_VERSION)/downloads
+ WLROOTS_LICENSE = MIT
+ WLROOTS_LICENSE_FILES = LICENSE
+-- 
+2.47.3
+
