@@ -7,7 +7,9 @@ See README.md (usage) and docs/ (roadmap, hardware, boot flow).
 
 ## Builds
 
-- Builds run in the lima VM `rgbox` via `bin/buildbox.sh`, never on the Mac.
+- Builds run in the lima VM `rgbox` via `bin/buildbox.sh`, never on the Mac
+  (`bin/build-image.sh` runs inside the VM). How to set up and use it:
+  docs/buildbox.md.
 - `bin/buildbox.sh check <board>` after any defconfig change (catches dropped
   and legacy symbols). Kernel fragments are checked after configure.
 - Incremental: `bin/buildbox.sh make <board> <pkg>-dirclean`, then
@@ -35,6 +37,10 @@ See README.md (usage) and docs/ (roadmap, hardware, boot flow).
 
 ## Gotchas
 
+- Local-source packages (rgos-padd/oskd/padsim/desktop) are auto-dircleaned by
+  build-image.sh when their sources change (hash stamp per output dir); a
+  manual `make <board> <pkg>-dirclean` is only needed after touching a build
+  dir directly.
 - Per-package directories: when a package's dependencies change, dependents
   keep stale copies; clean-build that output dir. Remove other packages'
   files in post-build.sh, never from a package.

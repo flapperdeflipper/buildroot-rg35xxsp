@@ -1,2 +1,6 @@
 # <file system>   <mount pt>  <type>  <options>                                        <dump> <pass>
 LABEL=RGOS-BOOT   /boot       vfat    noatime,nofail,umask=0022,x-systemd.automount    0      2
+# Root: the kernel mounts it rw; systemd-remount-fs applies these options.
+# noatime: no write per file read. commit=60: ext4 flushes every 60 s instead
+# of 5 s (fewer SD writes; the battery guard powers off cleanly at 3 %).
+/dev/root         /           ext4    rw,noatime,commit=60                             0      0

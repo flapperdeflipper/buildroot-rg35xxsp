@@ -9,7 +9,7 @@ RGOS_DESKTOP_SITE = $(RGOS_DESKTOP_PKGDIR)/files
 RGOS_DESKTOP_SITE_METHOD = local
 RGOS_DESKTOP_LICENSE = AGPL-3.0-only
 RGOS_DESKTOP_DEPENDENCIES = host-python3 labwc sfwbar swaybg wlopm foot fuzzel \
-	wvkbd rgos-padd
+	wvkbd rgos-padd rgos-oskd
 
 define RGOS_DESKTOP_BUILD_CMDS
 	$(HOST_DIR)/bin/python3 $(RGOS_DESKTOP_PKGDIR)/gen-wallpaper.py \

@@ -100,6 +100,12 @@ function cmd_create() {
         exit 1
     fi
 
+    # Key for the builder account only (VM, QEMU test images); gitignored
+    if [[ ! -f "${SSH_KEY}" ]]; then
+        mkdir -p "$(dirname "${SSH_KEY}")"
+        ssh-keygen -q -t ed25519 -N '' -C rgos-builder -f "${SSH_KEY}"
+    fi
+
     local pub_key tmpconfig
     pub_key="$(cat "${SSH_KEY}.pub")"
     tmpconfig="$(mktemp /tmp/rgbox-lima-XXXX).yaml"

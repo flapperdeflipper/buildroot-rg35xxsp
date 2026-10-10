@@ -1,0 +1,18 @@
+#!/bin/bash
+# Battery safety (system service): below poweroff_percent while discharging,
+# shut down cleanly before the battery dies under the SD card. Warnings are
+# shown by the panel (rgos-power panel prints "LOW").
+set -u
+while :; do
+    for d in /sys/class/power_supply/*; do
+        [[ "$(cat "${d}/type" 2>/dev/null)" == Battery ]] || continue
+        pct="$(cat "${d}/capacity" 2>/dev/null)"; status="$(cat "${d}/status" 2>/dev/null)"
+        limit="$(rgos-power-conf poweroff_percent 3)"
+        if [[ "${pct}" =~ ^[0-9]+$ && "${status}" == Discharging && "${pct}" -le "${limit}" ]]; then
+            echo "battery at ${pct}% (limit ${limit}%): powering off"
+            systemctl poweroff
+            exit 0
+        fi
+    done
+    sleep 60
+done

@@ -1,0 +1,18 @@
+#!/bin/bash
+# Idle handling for the desktop session (started from labwc's autostart):
+# dim, screen off and auto-suspend after the times in power.conf. Any input
+# (pad buttons included, via rgos-padd) counts as activity. "rgos-power
+# reload" kills swayidle; this loop then restarts it with the new settings.
+set -u
+conf() { rgos-power-conf "$@"; }
+
+while :; do
+    args=(-w)
+    dim="$(conf dim_after 60)"; off="$(conf off_after 180)"; sus="$(conf suspend_after 600)"
+    [[ "${dim}" -gt 0 ]] && args+=(timeout "${dim}" 'rgos-power dim' resume 'rgos-power undim')
+    [[ "${off}" -gt 0 ]] && args+=(timeout "${off}" 'rgos-screen off' resume 'rgos-screen on; rgos-power undim')
+    [[ "${sus}" -gt 0 ]] && args+=(timeout "${sus}" 'rgos-power event idle')
+    args+=(before-sleep 'rgos-power undim' after-resume 'rgos-screen on')
+    swayidle "${args[@]}"
+    sleep 1
+done

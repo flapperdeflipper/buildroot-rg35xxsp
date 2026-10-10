@@ -29,7 +29,10 @@
  * Control FIFO $XDG_RUNTIME_DIR/rgos-padd.ctl (see rgos-padctl), one
  * command per line:
  *   mode <nav|mouse|osk|passthrough|toggle-mouse|toggle-osk>
- *   warp <x> <y>     put the pointer at screen pixel x,y (absolute device)
+ *   osk <on|off>    show/hide the on-screen keyboard (idempotent; used by
+ *                   rgos-oskd, which opens it like a phone when a text app
+ *                   is activated and no hardware keyboard is attached)
+ *   warp <x> <y>    put the pointer at screen pixel x,y (absolute device)
  *
  * Lid switches are watched too (never grabbed): on_lid_close / on_lid_open.
  */
@@ -96,6 +99,7 @@ struct config {
 	int hold_button;
 	int passthrough_exit[2];  /* chord that leaves passthrough mode */
 	int speed_min, speed_max, accel_ticks;
+	int tap_px, hold_delay_ms;    /* d-pad tap = one nudge; hold = glide */
 	int scroll_repeat_ms;
 	int step_x, step_y;
 	int screen_w, screen_h;      /* range of the absolute "warp" device */
@@ -131,6 +135,7 @@ static struct active active[MAX_PRESSED];
 static bool hold_down, hold_used;
 static int move_held[4];
 static int move_ticks;
+static long move_start_ms, move_next_ms;
 static long scroll_next_ms;
 static const struct binding *scroll_binding;
 static volatile sig_atomic_t sig_reload, sig_toggle_mouse, sig_toggle_pass;
@@ -179,9 +184,11 @@ static void config_defaults(struct config *c)
 	c->hold_button = BTN_MODE;
 	c->passthrough_exit[0] = BTN_MODE;
 	c->passthrough_exit[1] = BTN_START;
-	c->speed_min = 2;
-	c->speed_max = 14;
-	c->accel_ticks = 40;
+	c->speed_min = 1;
+	c->speed_max = 12;
+	c->accel_ticks = 60;
+	c->tap_px = 2;
+	c->hold_delay_ms = 180;
 	c->scroll_repeat_ms = 120;
 	c->step_x = 49;
 	c->step_y = 45;
@@ -278,6 +285,8 @@ static bool parse_set(struct config *c, char *opt, char *rest, int lineno)
 		c->passthrough_exit[0] = code_from_name(a);
 		c->passthrough_exit[1] = code_from_name(b);
 		return c->passthrough_exit[0] >= 0 && c->passthrough_exit[1] >= 0;
+	} else if (!strcmp(opt, "mouse_tap")) {
+		return sscanf(rest, "%d %d", &c->tap_px, &c->hold_delay_ms) == 2;
 	} else if (!strcmp(opt, "mouse_speed")) {
 		return sscanf(rest, "%d %d %d", &c->speed_min, &c->speed_max, &c->accel_ticks) == 3;
 	} else if (!strcmp(opt, "scroll_repeat_ms")) {
@@ -463,6 +472,19 @@ static void write_mode_file(void)
 
 static void release_all(void);
 static void set_grab(bool grab);
+static void set_mode(enum mode m);
+
+/* Show or hide the on-screen keyboard; a no-op when already in that state.
+ * "Off" returns to the mode the user was in before the keyboard appeared. */
+static void osk_set(bool on)
+{
+	if (on) {
+		if (mode != MODE_OSK)
+			set_mode(MODE_OSK);
+	} else if (mode == MODE_OSK) {
+		set_mode(osk_return);
+	}
+}
 
 static void set_mode(enum mode m)
 {
@@ -492,9 +514,17 @@ static void action_press(const struct binding *b)
 		emit(ui_mouse, EV_KEY, b->arg, 1);
 		break;
 	case ACT_MOVE:
-		if (!move_held[0] && !move_held[1] && !move_held[2] && !move_held[3])
+		if (!move_held[0] && !move_held[1] && !move_held[2] && !move_held[3]) {
 			move_ticks = 0;
+			move_start_ms = now_ms();
+			move_next_ms = move_start_ms + cfg.hold_delay_ms;
+		}
 		move_held[b->arg]++;
+		/* A tap is one small, exact nudge; gliding starts only when held */
+		libevdev_uinput_write_event(ui_mouse, EV_REL,
+			b->arg == DIR_LEFT || b->arg == DIR_RIGHT ? REL_X : REL_Y,
+			b->arg == DIR_LEFT || b->arg == DIR_UP ? -cfg.tap_px : cfg.tap_px);
+		libevdev_uinput_write_event(ui_mouse, EV_SYN, SYN_REPORT, 0);
 		break;
 	case ACT_SCROLL:
 		scroll_binding = b;
@@ -517,7 +547,7 @@ static void action_press(const struct binding *b)
 		if (b->arg == -1)
 			set_mode(mode == MODE_MOUSE ? MODE_NAV : MODE_MOUSE);
 		else if (b->arg == -2)
-			set_mode(mode == MODE_OSK ? osk_return : MODE_OSK);
+			osk_set(mode != MODE_OSK);
 		else
 			set_mode(b->arg);
 		break;
@@ -567,7 +597,10 @@ static void tick(void)
 {
 	long now = now_ms();
 
-	if (move_held[0] || move_held[1] || move_held[2] || move_held[3]) {
+	/* Glide only while held past the tap delay, at a fixed TICK_MS rhythm
+	 * (tick() also runs on every other wake-up of the event loop) */
+	if ((move_held[0] || move_held[1] || move_held[2] || move_held[3]) && now >= move_next_ms) {
+		move_next_ms = now + TICK_MS;
 		int speed = cfg.speed_min + (cfg.speed_max - cfg.speed_min) * move_ticks / (cfg.accel_ticks ? cfg.accel_ticks : 1);
 		if (speed > cfg.speed_max)
 			speed = cfg.speed_max;
@@ -834,9 +867,11 @@ static void ctl_command(char *line)
 		if (m == -1)
 			set_mode(mode == MODE_MOUSE ? MODE_NAV : MODE_MOUSE);
 		else if (m == -2)
-			set_mode(mode == MODE_OSK ? osk_return : MODE_OSK);
+			osk_set(mode != MODE_OSK);
 		else
 			set_mode(m);
+	} else if (!strcmp(cmd, "osk") && arg) {
+		osk_set(!strcmp(arg, "on"));
 	} else if (!strcmp(cmd, "warp") && arg && sscanf(arg, "%d", &x) == 1 &&
 		   (arg = strtok(NULL, " \t")) && sscanf(arg, "%d", &y) == 1) {
 		warp(x, y);

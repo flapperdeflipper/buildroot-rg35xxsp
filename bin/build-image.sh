@@ -57,6 +57,35 @@ if [[ "${MAKE_ONLY}${CHECK_ONLY}${PRUNE_ONLY}" != 000 ]] \
     exit 1
 fi
 
+# Local-source packages keep their .stamp_* across source changes, so a plain
+# rebuild silently ships the old binary (bit us twice in one day). Hash each
+# package's sources at sync time; when the hash changes, dirclean the package
+# so the next build re-copies them (cheap: ccache keeps the compile cache).
+function dirclean_changed_locals() {
+    local pkg src stamp new build_dir
+    for pkg in rgos-desktop rgos-oskd rgos-padd rgos-padsim; do
+        if [[ "${pkg}" == rgos-desktop ]]; then
+            src="${WORK}/br2-external/package/${pkg}/files"
+        else
+            src="${WORK}/src/${pkg#rgos-}"
+        fi
+        [[ -d "${src}" ]] || continue
+        stamp="${OUT}/.${pkg}.srchash"
+        new="$(find "${src}" -type f -print0 | sort -z | xargs -0 md5sum | md5sum | cut -d' ' -f1)"
+        [[ -f "${stamp}" && "$(cat "${stamp}")" == "${new}" ]] && continue
+        printf '%s\n' "${new}" >"${stamp}"
+        # Only dirclean what was actually built before (a pristine tree has
+        # no build dirs, and <pkg>-dirclean needs a configured tree)
+        for build_dir in "${OUT}"/build/${pkg}-*/; do
+            [[ -d "${build_dir}" ]] || continue
+            log "Sources of ${pkg} changed since the last build: ${pkg}-dirclean"
+            "${BR_MAKE[@]}" "${pkg}-dirclean" >/dev/null
+            break
+        done
+    done
+}
+dirclean_changed_locals
+
 
 # Pristine pinned Buildroot + our patches (buildroot-patches/*.patch), e.g.
 # package bumps that can't be done from a BR2_EXTERNAL tree. Re-applied on

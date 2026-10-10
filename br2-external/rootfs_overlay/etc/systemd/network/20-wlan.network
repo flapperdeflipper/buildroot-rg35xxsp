@@ -3,6 +3,8 @@ Type=wlan
 
 [Network]
 DHCP=yes
+# rgos.local (systemd-resolved answers mDNS)
+MulticastDNS=yes
 IPv6PrivacyExtensions=yes
 
 [DHCPv4]

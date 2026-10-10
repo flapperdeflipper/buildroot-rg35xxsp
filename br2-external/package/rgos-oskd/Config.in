@@ -1,0 +1,8 @@
+config BR2_PACKAGE_RGOS_OSKD
+	bool "rgos-oskd"
+	select BR2_PACKAGE_WAYLAND
+	help
+	  Phone-style on-screen keyboard trigger: watches the focused
+	  window (wlr-foreign-toplevel) and shows/hides wvkbd through
+	  rgos-padd when a text app is activated and no hardware keyboard
+	  is attached. Source in src/oskd.

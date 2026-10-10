@@ -81,8 +81,10 @@
       <action name="Execute" command="rgos-brightness down" />
     </keybind>
     <!-- Short press: screen on/off; logind powers off on a long press -->
-    <keybind key="XF86PowerOff" allowWhenLocked="yes">
-      <action name="Execute" command="rgos-screen toggle" />
+    <!-- On release, so holding the key can't repeat (that made the screen
+         flash); what a press does is set in /etc/rgos/power.conf -->
+    <keybind key="XF86PowerOff" allowWhenLocked="yes" onRelease="yes">
+      <action name="Execute" command="rgos-power event power-key" />
     </keybind>
   </keyboard>
 

@@ -18,8 +18,14 @@
   </item>
   <menu id="rgos-apps" label="Applications" execute="rgos-menu" />
   <separator />
-  <item label="Wi-Fi">
+  <item label="Wi-Fi networks">
     <action name="Execute" command="rgos-wifi" />
+  </item>
+  <item label="Wi-Fi on/off">
+    <action name="Execute" command="rgos-power wifi toggle" />
+  </item>
+  <item label="Bluetooth on/off">
+    <action name="Execute" command="rgos-power bluetooth toggle" />
   </item>
   <item label="On-screen keyboard">
     <action name="Execute" command="rgos-osk toggle" />
@@ -29,6 +35,18 @@
   </item>
   <separator />
   <menu id="rgos-power" label="Power">
+    <item label="Profile: battery">
+      <action name="Execute" command="rgos-power profile battery" />
+    </item>
+    <item label="Profile: balanced">
+      <action name="Execute" command="rgos-power profile balanced" />
+    </item>
+    <item label="Profile: performance">
+      <action name="Execute" command="rgos-power profile performance" />
+    </item>
+    <item label="Suspend">
+      <action name="Execute" command="rgos-power suspend" />
+    </item>
     <item label="Screen off">
       <action name="Execute" command="rgos-screen off" />
     </item>

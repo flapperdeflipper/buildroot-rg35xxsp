@@ -135,6 +135,8 @@ BR2_PACKAGE_HICOLOR_ICON_THEME=y
 # swaybg wallpaper; apps: foot (terminal), Mousepad (notes), PCManFM (files).
 # See package/rgos-desktop.
 BR2_PACKAGE_RGOS_DESKTOP=y
+# Power management: idle/sleep/radios/profiles/battery guard (docs/plan.md)
+BR2_PACKAGE_RGOS_POWER=y
 BR2_PACKAGE_PCMANFM=y
 BR2_PACKAGE_MOUSEPAD=y
 

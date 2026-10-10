@@ -91,6 +91,13 @@ CONFIG_SPI_SUN6I=y
 CONFIG_SPI_GPIO=y
 CONFIG_MMC_SUNXI=y
 
+# The WiFi SDIO pwrseq has reset-gpios but no resets property; with
+# CONFIG_RESET_GPIO enabled the reset core's GPIO fallback rejects the
+# 3-cell sunxi GPIO spec (-ENOENT), pwrseq-simple fails to probe, the WiFi
+# mmc host defers forever and WiFi/BT never come up. Nothing on this board
+# uses the reset-gpio framework.
+# CONFIG_RESET_GPIO is not set
+
 # Display: DE33 mixer + TCON (patched), RGB panel over SPI-init, PWM backlight.
 # The sun4i DRM pieces must be built in: the ROCKNIX patches call between
 # them without exporting symbols (as in ROCKNIX's own config). The panel

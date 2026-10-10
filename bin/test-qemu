@@ -54,6 +54,15 @@ function running() { vm pgrep -x "${1}"; }
 function not_running() { ! vm pgrep -x "${1}"; }
 function screen_is() { [[ "$(gui wlopm | awk '{print $2}' | sort -u)" == "${1}" ]]; }
 
+# Test-time power settings in ~/.config/rgos/power.conf (as a user would):
+# lid and power key turn the screen off instead of suspending, because QEMU
+# only wakes from s2idle via the RTC alarm. Suspend has its own test below.
+POWER_TEST_BASE='lid_action=screen-off\npower_key_action=screen-off\n'
+function power_conf() {
+    vm "mkdir -p ~/.config/rgos && printf '${POWER_TEST_BASE}${1:-}' > ~/.config/rgos/power.conf"
+    gui rgos-power reload
+}
+
 function wait_for() {
 
     for i in $(seq 1 "${2:-20}"); do
@@ -95,7 +104,7 @@ check "user can read the journal" vm 'journalctl -b -n1 --no-pager 2>&1 | grep -
 log "Security and provisioning"
 # We got in with the key provisioned on the boot partition
 check "SSH key imported from the boot partition" vm 'test "$(wc -l < /etc/ssh/authorized_keys/user)" -eq 1'
-check "sshd: key-only (no password / keyboard / empty logins)" vm 'c="$(sudo sshd -T)"; grep -qx "passwordauthentication no" <<<"$c" && grep -qx "kbdinteractiveauthentication no" <<<"$c" && grep -qx "permitemptypasswords no" <<<"$c" && grep -qx "authenticationmethods publickey" <<<"$c"'
+check "sshd: key-only (no password / keyboard / empty logins)" vm 'c="$(sudo sshd -T)"; grep -qxi "passwordauthentication no" <<<"$c" && grep -qxi "kbdinteractiveauthentication no" <<<"$c" && grep -qxi "permitemptypasswords no" <<<"$c" && grep -qxi "authenticationmethods publickey" <<<"$c"'
 check "user has no password (local login)" vm 'test -z "$(sudo awk -F: "\$1==\"user\" {print \$2}" /etc/shadow)"'
 check "sudo works without password" vm 'sudo -n true'
 check "Wi-Fi network imported into iwd" vm 'sudo grep -qx "Passphrase=test pass 123" "/var/lib/iwd/=54657374204e6574.psk"'
@@ -109,13 +118,14 @@ check "/boot automount" vm 'ls /boot/Image'
 log "Desktop session"
 check "keymap data installed (labwc crashes without)" vm 'test -d /usr/share/X11/xkb/symbols'
 check "rgos-session.service active" vm systemctl is-active rgos-session.service
-for p in labwc sfwbar swaybg wvkbd-mobintl rgos-padd rgos-padsim; do
+for p in labwc sfwbar swaybg wvkbd-mobintl rgos-padd rgos-padsim rgos-oskd; do
     check "${p} running" wait_for "${p}"
 done
 check "session LANG is en_US.UTF-8" vm 'grep -qs LANG=en_US.UTF-8 /etc/locale.conf'
 check "padd grabbed the simulated pad" vm 'journalctl -b --no-pager | grep -q "rgos-padd: using .*rgos-padsim gamepad"'
 check "padd watches the lid" vm 'journalctl -b --no-pager | grep -q "rgos-padsim lid) as lid switch"'
 check "padd control FIFO exists" vm 'test -p /run/user/1000/rgos-padd.ctl'
+check "oskd detected the QEMU keyboard (stays passive)" vm 'journalctl -b --no-pager | grep -q "rgos-oskd: hardware keyboard: "'
 check "pad starts in mouse (pointer) mode" mode_is mouse
 check "mode file has no trailing newline (panel label)" vm 'test "$(wc -l < /run/user/1000/rgos-padd.mode)" -eq 0' 
 check "app menu lists terminal, files, notes" vm 'm="$(rgos-menu)"; grep -q "<openbox_pipe_menu>" <<<"$m" && grep -q "command=\"foot\"" <<<"$m" && grep -q pcmanfm <<<"$m" && grep -q rgos-notes <<<"$m"'
@@ -134,6 +144,7 @@ pad tap BTN_EAST
 check "Start -> Terminal opens foot" wait_for foot
 pad tap BTN_MODE
 check "Menu tap -> back to pointer mode" mode_is mouse
+check "osk did not auto-open for foot (keyboard attached)" mode_is mouse
 shot 03-terminal
 
 log "Apps (opened from the main menu, like a user would)"
@@ -172,6 +183,27 @@ pad tap BTN_DPAD_RIGHT BTN_DPAD_RIGHT
 shot 08-osk
 pad tap BTN_SOUTH
 check "B closes it, back to pointer mode" mode_is mouse
+gui rgos-padctl osk on
+gui rgos-padctl osk on
+check "osk on via FIFO (idempotent)" mode_is osk
+gui rgos-padctl osk off
+check "osk off via FIFO, back to pointer mode" mode_is mouse
+
+log "Automatic on-screen keyboard (rgos-oskd)"
+# Second instance with a test config: keyboard_watch off (ignores the QEMU
+# keyboard), foot triggers a marker file instead of touching the pad mode.
+vm 'mkdir -p ~/.config/rgos && printf "set apps foot\nset keyboard_watch 0\nset on_show touch /run/user/1000/oskd-test.show\nset on_hide rm -f /run/user/1000/oskd-test.show\n" > ~/.config/rgos/oskd.conf'
+vm 'rm -f /run/user/1000/oskd-test.show'
+gui 'rgos-oskd >/tmp/oskd-test.log 2>&1 & echo $! > /tmp/oskd-test.pid'
+sleep 1
+vm 'pkill -x foot'
+menu_open 1
+check "Start -> Terminal re-opens foot" wait_for foot
+check "oskd opens the keyboard when foot activates (no keyboard)" \
+    vm 'for i in $(seq 1 10); do test -e /run/user/1000/oskd-test.show && exit 0; sleep 0.5; done; exit 1'
+check "oskd logged the decision" vm 'grep -q "window activated.*show" /tmp/oskd-test.log'
+vm 'kill "$(cat /tmp/oskd-test.pid)"; rm -f ~/.config/rgos/oskd.conf /tmp/oskd-test.pid'
+check "foot still focused, pad still in pointer mode" mode_is mouse
 
 log "Game mode"
 pad combo BTN_MODE BTN_SELECT
@@ -187,6 +219,7 @@ pad tap BTN_WEST
 check "Esc closes it" not_running fuzzel
 
 log "Screen, lid, keys"
+power_conf
 pad tap KEY_VOLUMEUP
 check "volume key handled (session still up)" running labwc
 pad lid close
@@ -202,6 +235,44 @@ pad tap KEY_POWER
 sleep 1.5
 check "power key turns it back on" screen_is on
 shot 10-final
+
+log "Power (rgos-power)"
+check "rgos-power status works" vm 'rgos-power status | grep -q "^profile"'
+check "panel line (no battery in QEMU -> AC)" vm 'test "$(rgos-power panel)" = AC'
+check "idle daemon running (rgos-idle + swayidle)" wait_for swayidle
+check "battery guard running" vm 'systemctl is-active rgos-battery-guard.service'
+check "sleep mode is s2idle" vm 'grep -q "MemorySleepMode=s2idle" /usr/lib/systemd/sleep.conf.d/50-rgos.conf'
+check "root mounted noatime,commit=60 (fewer SD writes)" vm 'findmnt -no OPTIONS / | grep -q "noatime.*commit=60"'
+check "journald: no debug on disk, 15 min sync" vm 'grep -q "^SyncIntervalSec=15m" /usr/lib/systemd/journald.conf.d/50-rgos-power.conf'
+check "dirty writeback every 15 s" vm 'test "$(sysctl -n vm.dirty_writeback_centisecs)" = 1500'
+check "profile battery -> balanced" gui 'rgos-power profile battery && test "$(rgos-power profile)" = battery && rgos-power profile balanced && test "$(rgos-power profile)" = balanced'
+check "mDNS enabled (rgos.local)" vm 'resolvectl status | grep -qi "MulticastDNS setting: yes\|+mDNS"'
+# Power key: three rapid events must toggle the screen once (no flashing)
+gui 'for i in 1 2 3; do rgos-power event power-key & done; wait'
+sleep 1.5
+check "rapid power-key events -> screen off once (no flashing)" screen_is off
+gui 'sleep 1.1; rgos-power event power-key'
+sleep 1.5
+check "power key with screen off wakes it" screen_is on
+# Idle: shorten the screen-off timeout, then a pad press wakes it
+power_conf 'dim_after=0\noff_after=4\nsuspend_after=0\n'
+sleep 8
+check "idle -> screen off after off_after (config override)" screen_is off
+pad tap BTN_WEST
+sleep 1.5
+check "pad press wakes the screen" screen_is on
+power_conf
+# Suspend (s2idle) through rgos-power, woken by an RTC alarm 6 s later
+vm 'sudo -n sh -c "echo 0 > /sys/class/rtc/rtc0/wakealarm; echo +6 > /sys/class/rtc/rtc0/wakealarm"'
+gui 'rgos-power suspend' &
+sleep 15
+wait
+check "suspend (s2idle) and resume via RTC alarm" vm 'journalctl -b --no-pager -o cat | grep -q "PM: suspend exit"'
+check "desktop alive after resume" running labwc
+check "screen on after resume" screen_is on
+check "padd alive after resume" running rgos-padd
+vm 'rm -f ~/.config/rgos/power.conf'
+gui rgos-power reload
 
 log "Stability"
 check "nothing crashed (no core dumps this boot)" vm '! journalctl -b --no-pager -o cat | grep -q "dumped core"'

@@ -1,67 +1,85 @@
-# Handover — state as of 2026-10-10 ~16:45
+# Handover — status 2026-10-10 evening
 
-Read CLAUDE.md first (rules, gotchas). This file is the live status.
+Read CLAUDE.md first (rules, gotchas). This file is the live status. Build VM
+setup and usage: docs/buildbox.md.
 
-## Goal
+## Status
 
-RG35XX SP boots RGOS with a **working screen** (hard requirement) and a
-Raspberry-Pi-OS-like desktop (labwc + sfwbar, foot, Mousepad, PCManFM),
-pad = mouse pointer by default. Then: first public GitHub commit.
+- **Works on the device** (RG35XX SP, v2 panel, LPDDR4): boots, screen and
+  backlight on, labwc desktop + panel load, basic use works. Image:
+  `artifacts/rg35xxsp/rgos-rg35xxsp.img.gz` (608 MB; rootfs 376 MiB, no LLVM).
+  Flashed without SSH key/Wi-Fi, so there is no remote access yet
+  (`bin/provision.sh --key … --wifi …` with the card in the Mac fixes that).
+- Wi-Fi/BT fix by the OSK agent: `# CONFIG_RESET_GPIO is not set` (h700
+  fragment; pwrseq-simple failed with the reset-gpio fallback).
+- **QEMU 18:12 image = the whole tree (both agents) — `bin/test-qemu` 78/78
+  green**, including oskd, the precise pointer, and suspend/resume. The
+  earlier 64-check run also validated the `tests/` pytest-testinfra harness
+  (14 passed, 1 skipped; `cd tests && uv run pytest --board qemu-arm64`, or
+  `--host ssh://user@<ip>` against a provisioned device).
+- Build hygiene: local-source packages (rgos-padd/oskd/padsim/desktop) are
+  auto-dircleaned when their sources change (build-image.sh); no more manual
+  `-dirclean` after source edits. README hardware caveat removed (it works).
+- Two commits on `main`; everything since is uncommitted in the tree (both
+  agents' work, intermixed — see `git diff`).
 
-## Where things are
+## Who works on what (session handoff, 2026-10-10 ~18:15)
 
-- **Device image built and verified (16:50)**: `artifacts/rg35xxsp/rgos-rg35xxsp.img.gz`
-  (608 MB image, 122 MB gz; rootfs 376 MiB, no LLVM; panel_mipi in
-  modules-load.d; PPU=y; v2 panel default). **Not yet flashed/booted.**
-  It includes, untested on hardware:
-  1. panel fix: `boards/h700/rootfs_overlay/etc/modules-load.d/rgos-panel.conf`
-     loads `panel_mipi` (SPI modalias mismatch meant it never autoloaded →
-     LCD controller deferred forever → no display, no backlight).
-  2. `CONFIG_SUN50I_H6_PRCM_PPU=y` (GPU power domain; panfrost timed out).
-  3. v2 panel is the default extlinux entry (device has the v2 panel: stock
-     firmware DTB says `fog_fj035fhd05_v1`, timings match ROCKNIX sp-v2).
-  4. no target LLVM/clang (buildroot-patches/0002) → much smaller image.
-  5. provisioning: `/usr/libexec/rgos/bootconfig` + `rgos-bootconfig.service`
-     import `/boot/authorized_keys` and `/boot/wifi.txt` (deleted after import).
-     User has no password, sudo NOPASSWD, sshd key-only. No keys at build time.
-  6. `/boot/rgos-boot.log` written ~30 s after boot (`rgos-bootlog.service`).
-- **QEMU image is stale** (built before items 4–6). Rebuild:
-  `bin/buildbox.sh ssh 'rm -rf ~/output-qemu-arm64/target'`,
-  `bin/buildbox.sh make qemu-arm64 rgos-desktop-dirclean mesa3d-dirclean`,
-  `bin/buildbox.sh build qemu-arm64`, then `bin/test-qemu` (now also checks
-  provisioning + key-only SSH + bootlog). Not yet run — expect to fix bugs.
-- **Repo not committed yet.** User reviewed: safe to push (no secrets/PII).
-  User will reset the git author email. LICENSE = AGPL-3.0 (matches offline-lab).
+Both prior agents (OSK + power) are wrapping up; a new agent picks up
+everything. What each left behind:
 
-## Next steps (in order)
+| Area | State | Where |
+|---|---|---|
+| On-screen keyboard | **Done**, QEMU-verified | `src/oskd/`, `package/rgos-oskd/`; `rgos-padctl osk on\|off`; `/etc/rgos/oskd.conf` |
+| Pointer precision | **Done** (tap = 2 px nudge, glide after 180 ms) | `src/padd/padd.c`, `mouse_tap`/`mouse_speed` in padd.conf |
+| Power management | **In progress**, approved plan | `docs/plan.md`, `rgos-power` package, `docs/power.md` |
+| Build/test infra | **Done** this session | auto-dirclean in `build-image.sh`; `tests/` (pytest-testinfra) |
 
-1. (Done) Image verified. Unverified: service enablement (preset-all runs on
-   the rootfs copy, not target/) — confirm on device via rgos-boot.log.
-2. Give the user this command (their terminal; macOS blocks raw disk access
-   from the agent). Card is usually `disk4` — re-check with `diskutil list`:
-   `bin/flash.sh --key ~/.ssh/<key>.pub --wifi "<ssid>" --country NL disk4`
-3. After a boot on the device: card back in the Mac, read
-   `/Volumes/RGOS-BOOT/rgos-boot.log`. If there's still no screen, check the
-   deferred-probe and DRM/panel sections. Full journal: user runs
-   `sudo /opt/homebrew/opt/e2fsprogs/sbin/debugfs -R "rdump /var/log/journal $HOME/rgos-journal" /dev/rdisk4s2`,
-   then copy to the VM and `journalctl -D … -b -1`.
-4. Rebuild + test QEMU (above), fix failures, then the user commits.
+Still valid for any number of agents:
+- One build per output dir at a time (`build-image.sh` refuses a second);
+  check `bin/buildbox.sh ssh 'cat ~/build-<board>.status'` first. Builds sync
+  the whole working tree, including others' uncommitted work.
+- Build VM disk: ~41 GB free; two full outputs fit, a third does not.
+
+## Next steps (for the next agent)
+
+1. **Commit the tree** — both agents' work is uncommitted and QEMU-validated
+   (78/78). The user does the commits themselves; leave staging to them.
+2. **Flash + verify on hardware** — the **18:18** rg35xxsp image = the same
+   tree as the 78/78 QEMU run (oskd + WiFi fix + precise pointer: tap =
+   2 px nudge, glide after 180 ms; `set mouse_tap`/`mouse_speed` in
+   padd.conf). User flashes with
+   `bin/flash.sh --key ~/.ssh/<key>.pub --wifi "<ssid>" --country NL disk4`,
+   then verify: WiFi associates + `ssh user@<ip>`, oskd opens the keyboard
+   in foot, pointer precision, brightness (Menu + d-pad up/down). Full suite:
+   `cd tests && uv run pytest --host ssh://user@<ip>`.
+3. **Power phase** per **docs/plan.md** (approved): measure → idle → radios →
+   USB-C → sleep → …; `rgos-power` package owns it. Battery measurement
+   needs the SSH from step 2.
+4. Then Phase 2/3 of docs/roadmap.md (suspend field-testing, audio, TF2
+   automount, apps; housekeeping: SBOM, check-versions, artifacts retention,
+   BR2_REPRODUCIBLE).
+
+## Device debugging
+
+After a boot, card in the Mac: `/Volumes/RGOS-BOOT/rgos-boot.log`. Full
+journal (persistent): user runs
+`sudo /opt/homebrew/opt/e2fsprogs/sbin/debugfs -R "rdump /var/log/journal $HOME/rgos-journal" /dev/rdisk4s2`,
+then `journalctl -D <dir> -b -1` in the build VM.
 
 ## Facts worth not re-deriving
 
-- First hardware boot (old image): kernel + userspace OK (rootfs grew to
-  31.8 GB); `6511000.lcd-controller: deferred probe pending`, panfrost -110.
-- Stock Anbernic card (16 GB) dumps are in `~/stock-head.img`,
-  `~/stock-boot.img`, DTBs in `~/stock-dtb/` (not in the repo; proprietary).
-- Card reader runs at USB 2.0 (480 Mb/s → ~34 MB/s); not a script problem.
-- Build VM disk was full once; `build-image.sh` now prunes finished build
-  trees. ~64 GB free after the clean device build started.
-- Buildroot quirks fixed in-tree: libfm/pcmanfm built as gnu17
-  (external.mk), ROCKNIX kernel patches applied with fuzz via hook
-  (external.mk), wlroots 0.20.1 + mesa patches in buildroot-patches/.
-
-## Open items / roadmap
-
-docs/roadmap.md. Notable: Ghostty (needs GL 4.3; Mali-G31 has 3.1 → only
-llvmpipe; GTK4/libadwaita/Zig not in Buildroot) — user hasn't decided.
-Kernel modules (~41 MB, arm64 defconfig leftovers) could be trimmed properly.
+- First boot failure was the panel module not autoloading (SPI modalias) →
+  LCD controller deferred → no display/backlight; fixed via modules-load.d.
+- Device has the v2 panel (stock fw `fog_fj035fhd05_v1`; ROCKNIX sp-v2 timings).
+- Stock Anbernic dumps: `~/stock-head.img`, `~/stock-boot.img`, DTBs in
+  `~/stock-dtb/` (not in the repo; proprietary).
+- Card reader is USB 2.0 (~34 MB/s); flashing 608 MB takes ~18 s.
+- In-tree Buildroot fixes: libfm/pcmanfm gnu17, ROCKNIX patches with fuzz
+  (external.mk); wlroots 0.20.1 + mesa (no target LLVM, host RTTI) in
+  buildroot-patches/.
+- Wayland clients here: libwayland **aborts** on NULL listener entries
+  (wl_closure_invoke) — stub every event you ignore; and wlr-foreign-toplevel
+  must be the wlroots 0.20 XML variant (output_enter/output_leave, no
+  `output` event), same one sfwbar bundles. labwc reports X11 apps' WM_CLASS
+  as app_id (e.g. "Mousepad", "pcmanfm").

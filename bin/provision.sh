@@ -51,7 +51,8 @@ for key in "${KEYS[@]}"; do
     [[ -f "${key}" ]] || { log_err "No such key file: ${key}"; exit 1; }
     grep -Eq '^(ssh-|ecdsa-|sk-)' "${key}" || { log_err "${key} doesn't look like an SSH public key"; exit 1; }
     [[ "${key}" == *.pub ]] || { log_err "${key}: use the PUBLIC key (.pub)"; exit 1; }
-    cat "${key}" >>"${work}/authorized_keys"
+    # one key per line, even if the file lacks a trailing newline
+    grep -E '^(ssh-|ecdsa-|sk-)' "${key}" >>"${work}/authorized_keys"
 done
 
 if [[ -n "${SSID}" ]]; then
@@ -71,6 +72,10 @@ fi
 if [[ -d "${TARGET}" ]]; then
     # Mounted partition: append keys/networks to what's already there
     if [[ -f "${work}/authorized_keys" ]]; then
+        # don't glue onto an existing last line without a newline
+        if [[ -s "${TARGET}/authorized_keys" && -n "$(tail -c1 "${TARGET}/authorized_keys")" ]]; then
+            echo >>"${TARGET}/authorized_keys"
+        fi
         cat "${work}/authorized_keys" >>"${TARGET}/authorized_keys"
         log "SSH key(s) added to ${TARGET}/authorized_keys"
     fi

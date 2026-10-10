@@ -1,0 +1,3 @@
+# Wi-Fi and Bluetooth start off by default (power.conf); after that,
+# systemd-rfkill remembers whatever the user chose.
+ACTION=="add", SUBSYSTEM=="rfkill", ENV{RFKILL_TYPE}=="wlan|bluetooth", RUN+="/usr/libexec/rgos/radio-default %k $env{RFKILL_TYPE}"

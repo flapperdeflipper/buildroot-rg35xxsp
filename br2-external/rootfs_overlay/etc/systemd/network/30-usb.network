@@ -4,6 +4,8 @@ Type=ether
 
 [Network]
 DHCP=yes
+# rgos.local (systemd-resolved answers mDNS)
+MulticastDNS=yes
 
 [DHCPv4]
 RouteMetric=100

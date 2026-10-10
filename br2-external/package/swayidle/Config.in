@@ -1,0 +1,10 @@
+config BR2_PACKAGE_SWAYIDLE
+	bool "swayidle"
+	depends on BR2_PACKAGE_WAYLAND
+	depends on BR2_PACKAGE_SYSTEMD_LOGIND
+	select BR2_PACKAGE_WAYLAND_PROTOCOLS
+	help
+	  Idle management daemon for Wayland compositors (ext-idle-notify):
+	  runs commands after idle timeouts and around suspend.
+
+	  https://github.com/swaywm/swayidle

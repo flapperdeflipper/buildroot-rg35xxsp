@@ -9,7 +9,8 @@ set -u
 kbd=wvkbd-mobintl
 
 if ! pidof -q "${kbd}"; then
-    "${kbd}" --hidden -L 180 --fn "DejaVu Sans 12" >/dev/null 2>&1 &
+    # stderr to the journal: if wvkbd fails to start we want to know why
+    "${kbd}" --hidden -L 180 --fn "DejaVu Sans 12" >/dev/null &
     sleep 0.3
 fi
 

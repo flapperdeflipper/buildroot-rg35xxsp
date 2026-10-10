@@ -1,0 +1,236 @@
+#!/bin/bash
+# RGOS power control. Settings: /etc/rgos/power.conf, overridden by
+# ~/.config/rgos/power.conf.
+#
+#   rgos-power status              battery, power draw, time left, radios, profile
+#   rgos-power panel               one short line for the panel
+#   rgos-power log [seconds]       append measurements to ~/.local/state/rgos/power.csv
+#   rgos-power wifi|bluetooth on|off|toggle|state
+#   rgos-power profile [performance|balanced|battery]
+#   rgos-power dim | undim         used by the idle daemon (rgos-idle)
+#   rgos-power event lid-close|lid-open|power-key|idle
+#   rgos-power suspend
+#   rgos-power reload              re-read power.conf (restarts rgos-idle)
+set -u
+shopt -u patsub_replacement 2>/dev/null
+
+# ---------------------------------------------------------------- settings
+conf() { rgos-power-conf "$@"; }
+
+as_root() {
+    if [[ "$(id -u)" -eq 0 ]]; then "$@"; else sudo -n "$@"; fi
+}
+
+# ---------------------------------------------------------------- battery
+battery_dir() {
+    local d
+    for d in /sys/class/power_supply/*; do
+        [[ "$(cat "${d}/type" 2>/dev/null)" == Battery ]] && { echo "${d}"; return; }
+    done
+}
+
+# Prints: percent status microwatts (power is negative while charging)
+battery_read() {
+    local d pct status uv ua uw
+    d="$(battery_dir)"
+    [[ -n "${d}" ]] || { echo "- none 0"; return; }
+    pct="$(cat "${d}/capacity" 2>/dev/null || echo -)"
+    status="$(cat "${d}/status" 2>/dev/null || echo Unknown)"
+    if [[ -r "${d}/power_now" ]]; then
+        uw="$(cat "${d}/power_now")"
+    else
+        uv="$(cat "${d}/voltage_now" 2>/dev/null || echo 0)"
+        ua="$(cat "${d}/current_now" 2>/dev/null || echo 0)"
+        uw=$(( uv / 1000 * (ua < 0 ? -ua : ua) / 1000 ))
+    fi
+    [[ "${status}" == Charging ]] && uw="-${uw#-}"
+    echo "${pct} ${status} ${uw}"
+}
+
+on_battery() {
+    local status
+    read -r _ status _ < <(battery_read)
+    [[ "${status}" == Discharging ]]
+}
+
+time_left() {   # pct microwatts -> "3h10" (discharging only)
+    local pct="$1" uw="$2" mwh mins
+    [[ "${pct}" =~ ^[0-9]+$ && "${uw}" -gt 50000 ]] || return 0
+    mwh="$(conf battery_mwh 12210)"
+    mins=$(( mwh * pct / 100 * 60 * 1000 / uw ))
+    printf '%dh%02d' $(( mins / 60 )) $(( mins % 60 ))
+}
+
+watts() { awk -v uw="$1" 'BEGIN { printf "%.2f", (uw < 0 ? -uw : uw) / 1e6 }'; }
+
+# ---------------------------------------------------------------- radios
+# rfkill types: wlan, bluetooth. /dev/rfkill is accessible to the active
+# session (logind uaccess); systemd-rfkill remembers the state per device.
+radio() {
+    local type="$1" action="${2:-state}" blocked
+    [[ "${type}" == wifi ]] && type=wlan
+    blocked="$(rfkill -n -o SOFT -r list "${type}" 2>/dev/null | head -n1)"
+    case "${action}" in
+        state)  [[ -z "${blocked}" ]] && echo none || { [[ "${blocked}" == unblocked ]] && echo on || echo off; } ;;
+        on)     rfkill unblock "${type}" ;;
+        off)    rfkill block "${type}" ;;
+        toggle) if [[ "${blocked}" == unblocked ]]; then rfkill block "${type}"; else rfkill unblock "${type}"; fi ;;
+        *)      echo "usage: rgos-power ${1} on|off|toggle|state" >&2; return 2 ;;
+    esac
+}
+
+# ---------------------------------------------------------------- profiles
+# Highest frequency in the list that is <= target (else the lowest one)
+pick_freq() {
+    local target="$1" best="" f
+    shift
+    for f in "$@"; do
+        if (( f <= target )) && [[ -z "${best}" || f -gt best ]]; then best="${f}"; fi
+    done
+    [[ -n "${best}" ]] || best="$(printf '%s\n' "$@" | sort -n | head -n1)"
+    echo "${best}"
+}
+
+sysfs_set() { echo "$2" | as_root tee "$1" >/dev/null 2>&1; }
+
+# CPU: governor + top frequency. GPU (devfreq, Panfrost): the kernel only has
+# simple_ondemand, so the profile sets the min/max frequency limits instead.
+# battery caps both at ~2/3 of the top frequency.
+profile_apply() {
+    local p="${1:-$(conf profile balanced)}" cpu dev max top cap
+    case "${p}" in performance|balanced|battery) ;; *)
+        echo "unknown profile: ${p}" >&2; return 2 ;; esac
+    for cpu in /sys/devices/system/cpu/cpufreq/policy*; do
+        [[ -d "${cpu}" ]] || continue
+        max="$(cat "${cpu}/cpuinfo_max_freq")"
+        cap="$(pick_freq $(( max * 2 / 3 )) $(cat "${cpu}/scaling_available_frequencies" 2>/dev/null || echo "${max}"))"
+        case "${p}" in
+            performance) sysfs_set "${cpu}/scaling_max_freq" "${max}"
+                         sysfs_set "${cpu}/scaling_governor" performance ;;
+            balanced)    sysfs_set "${cpu}/scaling_governor" schedutil
+                         sysfs_set "${cpu}/scaling_max_freq" "${max}" ;;
+            battery)     sysfs_set "${cpu}/scaling_governor" schedutil
+                         sysfs_set "${cpu}/scaling_max_freq" "${cap}" ;;
+        esac
+    done
+    for dev in /sys/class/devfreq/*; do
+        [[ -r "${dev}/available_frequencies" ]] || continue
+        read -ra avail <"${dev}/available_frequencies"
+        top="$(printf '%s\n' "${avail[@]}" | sort -n | tail -n1)"
+        cap="$(pick_freq $(( top * 2 / 3 )) "${avail[@]}")"
+        case "${p}" in
+            performance) sysfs_set "${dev}/max_freq" "${top}"; sysfs_set "${dev}/min_freq" "${top}" ;;
+            balanced)    sysfs_set "${dev}/min_freq" 0;        sysfs_set "${dev}/max_freq" "${top}" ;;
+            battery)     sysfs_set "${dev}/min_freq" 0;        sysfs_set "${dev}/max_freq" "${cap}" ;;
+        esac
+    done
+    mkdir -p "${XDG_RUNTIME_DIR:-/tmp}"
+    echo "${p}" >"${XDG_RUNTIME_DIR:-/tmp}/rgos-power.profile"
+}
+
+profile_current() {
+    cat "${XDG_RUNTIME_DIR:-/tmp}/rgos-power.profile" 2>/dev/null || conf profile balanced
+}
+
+# ---------------------------------------------------------------- screen
+backlight() { ls -d /sys/class/backlight/* 2>/dev/null | head -n1; }
+
+dim() {
+    local b saved
+    b="$(backlight)"; [[ -n "${b}" ]] || return 0
+    saved="${XDG_RUNTIME_DIR:-/tmp}/rgos-brightness.saved"
+    [[ -e "${saved}" ]] || cat "${b}/brightness" >"${saved}"
+    rgos-brightness "$(conf dim_brightness 10)"
+}
+
+undim() {
+    local b saved
+    b="$(backlight)"; [[ -n "${b}" ]] || return 0
+    saved="${XDG_RUNTIME_DIR:-/tmp}/rgos-brightness.saved"
+    [[ -e "${saved}" ]] || return 0
+    busctl call org.freedesktop.login1 /org/freedesktop/login1/session/auto \
+        org.freedesktop.login1.Session SetBrightness ssu backlight "$(basename "${b}")" "$(cat "${saved}")"
+    rm -f "${saved}"
+}
+
+# ---------------------------------------------------------------- events
+do_action() {
+    case "$1" in
+        suspend)    as_root systemctl suspend ;;
+        screen-off) rgos-screen off ;;
+        screen-on)  rgos-screen on ;;
+        nothing|"") ;;
+        *)          echo "rgos-power: unknown action '$1'" >&2 ;;
+    esac
+}
+
+screen_is_on() { wlopm 2>/dev/null | awk '$2 == "on" { on = 1 } END { exit !on }'; }
+
+event() {
+    # One event at a time, and repeats within a second are ignored: a held
+    # or bouncing power key must not toggle the screen on/off/on (flashing).
+    local lock="${XDG_RUNTIME_DIR:-/tmp}/rgos-power.event" last now
+    exec 9>"${lock}.lock"
+    flock -n 9 || return 0
+    now="$(date +%s)"; last="$(cat "${lock}.last" 2>/dev/null || echo 0)"
+    if [[ "${1:-}" != idle && $(( now - last )) -lt 1 ]]; then return 0; fi
+    echo "${now}" >"${lock}.last"
+    case "${1:-}" in
+        lid-close) do_action "$(conf lid_action suspend)" ;;
+        lid-open)  rgos-screen on ;;
+        power-key) if screen_is_on; then do_action "$(conf power_key_action suspend)"; else rgos-screen on; fi ;;
+        idle)      # auto-suspend from the idle daemon: on battery, or on AC if allowed
+                   if on_battery || [[ "$(conf suspend_on_ac 0)" == 1 ]]; then do_action suspend; fi ;;
+        *)         echo "usage: rgos-power event lid-close|lid-open|power-key|idle" >&2; return 2 ;;
+    esac
+}
+
+# ---------------------------------------------------------------- main
+cmd="${1:-status}"
+shift || true
+case "${cmd}" in
+    status)
+        read -r pct status uw < <(battery_read)
+        printf 'battery   %s%% (%s)\n' "${pct}" "${status}"
+        printf 'power     %s W%s\n' "$(watts "${uw}")" "$([[ "${uw}" -lt 0 ]] && echo ' charging')"
+        tl="$(time_left "${pct}" "${uw}")"; [[ -n "${tl}" ]] && printf 'time left %s\n' "${tl}"
+        printf 'wifi      %s\nbluetooth %s\nprofile   %s\n' "$(radio wifi)" "$(radio bluetooth)" "$(profile_current)"
+        for f in /sys/devices/system/cpu/cpufreq/policy*; do
+            [[ -r "${f}/scaling_cur_freq" ]] && printf 'cpu       %s MHz (max %s, %s)\n' \
+                $(( $(cat "${f}/scaling_cur_freq") / 1000 )) $(( $(cat "${f}/scaling_max_freq") / 1000 )) "$(cat "${f}/scaling_governor")"
+        done
+        for f in /sys/class/devfreq/*; do
+            [[ -r "${f}/cur_freq" ]] && printf 'gpu       %s MHz (max %s)\n' \
+                $(( $(cat "${f}/cur_freq") / 1000000 )) $(( $(cat "${f}/max_freq") / 1000000 ))
+        done
+        ;;
+    panel)
+        read -r pct status uw < <(battery_read)
+        [[ "${pct}" == - ]] && { echo "AC"; exit 0; }
+        line="${pct}% $(watts "${uw}")W"
+        tl="$(time_left "${pct}" "${uw}")"; [[ -n "${tl}" ]] && line+=" ${tl}"
+        [[ "${status}" == Charging ]] && line+=" +"
+        [[ "${pct}" =~ ^[0-9]+$ && "${pct}" -le "$(conf warn_percent 10)" && "${status}" != Charging ]] && line="LOW ${line}"
+        echo "${line}"
+        ;;
+    log)
+        interval="${1:-10}"
+        out="${HOME}/.local/state/rgos/power.csv"
+        mkdir -p "$(dirname "${out}")"
+        [[ -s "${out}" ]] || echo "time,percent,status,watts,brightness,wifi,bluetooth,profile" >"${out}"
+        while :; do
+            read -r pct status uw < <(battery_read)
+            b="$(backlight)"
+            echo "$(date +%FT%T),${pct},${status},$(watts "${uw}"),$(cat "${b}/brightness" 2>/dev/null),$(radio wifi),$(radio bluetooth),$(profile_current)" | tee -a "${out}"
+            sleep "${interval}"
+        done
+        ;;
+    wifi|bluetooth) radio "${cmd}" "${1:-state}" ;;
+    profile)        if [[ $# -gt 0 ]]; then profile_apply "$1"; else profile_current; fi ;;
+    dim)            dim ;;
+    undim)          undim ;;
+    event)          event "${1:-}" ;;
+    suspend)        do_action suspend ;;
+    reload)         pkill -x swayidle; profile_apply ;;   # rgos-idle restarts swayidle
+    *)              sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

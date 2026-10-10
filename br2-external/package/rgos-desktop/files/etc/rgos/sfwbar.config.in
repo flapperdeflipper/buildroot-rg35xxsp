@@ -6,7 +6,17 @@
 # Copy to ~/.config/sfwbar/sfwbar.config to customise.
 
 Set ImagePath = "icons/misc"
+
+# Power readout for the panel label below (rgos-power panel)
+Exec("rgos-power panel") {
+  RgosPower = Grab(First)
+}
 Set ThicknessHint = "26px"
+
+# Update the pad mode label when padd writes the file (no 1 s polling)
+Function SfwbarInit() {
+  FileTrigger("/run/user/1000/rgos-padd.mode", "rgos-padmode")
+}
 
 include "winops.widget"
 
@@ -42,7 +52,7 @@ bar {
 
   label {
     value = Read("/run/user/1000/rgos-padd.mode")
-    interval = 1000
+    trigger = "rgos-padmode"
     style = "module"
     tooltip = "Pad mode (tap MENU to switch pointer / keys)"
   }
@@ -57,6 +67,14 @@ bar {
     volume_icons = ["audio-volume-high", "audio-volume-medium", "audio-volume-low"];
     volume_muted = "audio-volume-muted";
   }
+  # Power draw and time left (rgos-power panel); "LOW" below warn_percent
+  label {
+    value = Str(RgosPower)
+    style = "module"
+    interval = 10000
+    tooltip = "Power draw / time left (rgos-power status)"
+  }
+
   widget "battery.widget" {
     simple_icon = False;
   }

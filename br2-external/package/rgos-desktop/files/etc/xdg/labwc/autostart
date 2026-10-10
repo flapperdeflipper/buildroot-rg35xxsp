@@ -7,8 +7,18 @@ swaybg --mode fill --image /usr/share/rgos/wallpaper.png >/dev/null 2>&1 &
 # Panel: start menu, window list, Wi-Fi, Bluetooth, volume, battery, clock
 sfwbar -f /etc/rgos/sfwbar.config >/dev/null &
 
-# On-screen keyboard (hidden until SELECT / the panel's keyboard button)
-wvkbd-mobintl --hidden -L 180 --fn "DejaVu Sans 12" >/dev/null 2>&1 &
+# On-screen keyboard (hidden until SELECT / the panel's keyboard button /
+# rgos-oskd opens it for a text app)
+wvkbd-mobintl --hidden -L 180 --fn "DejaVu Sans 12" &
+
+# Phone-style OSK trigger: opens the keyboard when a text app is activated
+# and no USB/BT keyboard is attached (see /etc/rgos/oskd.conf)
+rgos-oskd &
+
+# Power: performance profile, then idle dimming / screen off / auto-suspend,
+# all from /etc/rgos/power.conf (see rgos-power)
+rgos-power profile "$(rgos-power-conf profile balanced)" &
+rgos-idle >/dev/null 2>&1 &
 
 # Handheld buttons -> pointer/keys. Without it the pad is dead: keep it alive.
 # (stderr goes to the journal: journalctl -u rgos-session)

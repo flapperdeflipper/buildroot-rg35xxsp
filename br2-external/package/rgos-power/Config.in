@@ -1,0 +1,11 @@
+config BR2_PACKAGE_RGOS_POWER
+	bool "rgos-power"
+	depends on BR2_PACKAGE_SYSTEMD_LOGIND
+	select BR2_PACKAGE_SWAYIDLE
+	select BR2_PACKAGE_UTIL_LINUX_RFKILL
+	select BR2_PACKAGE_POWERTOP
+	help
+	  RGOS power management: power readout and logging, idle dimming /
+	  screen off / auto-suspend (swayidle), Wi-Fi and Bluetooth off by
+	  default with toggles, power profiles, s2idle sleep, battery guard,
+	  mDNS. Settings in /etc/rgos/power.conf.

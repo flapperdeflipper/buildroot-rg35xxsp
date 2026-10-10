@@ -1,0 +1,10 @@
+[Unit]
+Description=Clean shutdown before the battery runs empty
+
+[Service]
+ExecStart=/usr/libexec/rgos/battery-guard
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

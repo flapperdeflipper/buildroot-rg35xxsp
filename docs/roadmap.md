@@ -10,23 +10,25 @@
 - [x] rgos-padd: nav / mouse / osk / passthrough modes, Menu layer, config file
 - [x] WiFi picker (iwd), Bluetooth (bluetoothctl), SSH, zram, first-boot grow
 - [x] QEMU test board + simulated pad + `bin/test-qemu` smoke test (38 checks)
-- [ ] **First boot on hardware**: verify panel (v1/v2), backlight, buttons,
-      WiFi, BT, audio controls, battery readout, USB OTG host
+- [x] **First boot on hardware**: screen, backlight, desktop work (v2 panel, LPDDR4)
+- [ ] Verify on hardware: buttons/padd, Wi-Fi, BT, audio, battery readout, USB OTG host
 - [x] Tune `osk_step` to the wvkbd key grid (49x45, verified in QEMU)
 - [ ] Font sizes / readability on the real 3.5" panel
 
 ## Phase 2: daily usability
 
-- [ ] Suspend/resume (lid + power key). ROCKNIX carries suspend fixes; needs testing
+- [ ] Suspend/resume (lid + power key) — see docs/power.md S1–S3
 - [ ] Audio: PipeWire + WirePlumber (BT headsets, per-app volume)
-- [ ] Battery: low-battery warning + auto power-off; charge LED
+- [ ] Battery: low-battery warning + auto power-off (docs/power.md B1); charge LED
+- [ ] Brightness control in the panel (slider) + keys
 - [ ] Second SD card (TF2) automount as /media/sd2
 - [ ] Notifications (fnott or mako) for volume/brightness/wifi feedback
-- [ ] A d-pad-native on-screen keyboard (highlight grid, no pointer) if the
-      wvkbd + pointer-stepping approach turns out clumsy
+- [ ] On-screen keyboard rework (oskd) — in progress (OSK agent)
+- [ ] Power saving + performance tuning — candidates in docs/power.md, in progress
 - [ ] USB gadget mode (NCM ethernet + serial over the USB-C port)
 - [ ] Image updates without reflashing (rsync rootfs, or RAUC when merging
-      into offline-lab)
+      into offline-lab — their pattern: RAUC A/B slots + udev usb-update +
+      bin/test-qemu-ota A→B→A cycle; RGOS could deliver updates via TF2)
 
 ## Phase 3: apps
 
@@ -37,6 +39,8 @@
       netsurf as a light fallback
 - [ ] Video player: mpv on Panfrost; hardware decode via cedrus (V4L2
       stateless) needs FFmpeg v4l2-request support
+- [ ] Music player, IRC client, web browser, editor, power-user CLI tools
+      (choices to be made, see the planning questions)
 - [ ] File manager (TUI: nnn / mc)
 - [ ] SDR: librtlsdr, rtl_433, SoapySDR, gqrx or a TUI frontend. The kernel
       fragment already keeps the DVB driver off RTL2832U dongles
@@ -44,9 +48,20 @@
 
 ## Housekeeping
 
-- [ ] Panfrost pulls in target LLVM (~100 MB) through Buildroot's
-      MESA3D_LLVM; patch Buildroot to only need host LLVM for the precompiler
-- [ ] Hash files for every download (kernel patches are pinned by commit)
-- [ ] Grow bin/test-qemu into pytest-testinfra (like offline-lab) once it outgrows bash
+- [x] No target LLVM for Panfrost (buildroot-patches/0002)
+- [x] Hash files for every download
+- [x] Auto-dirclean local-source packages (rgos-padd/oskd/padsim/desktop) when
+      their sources change — build-image.sh hashes them at sync time
+- [ ] Port offline-lab's pytest-testinfra harness (`tests/`): same suite against
+      QEMU (--board) and the real device over SSH (--host). Started: conftest +
+      test_base; grow it out of bin/test-qemu as checks migrate
+- [ ] SBOM per image: `make show-info | generate-cyclonedx` in build-image.sh
+      (offline-lab pattern)
+- [ ] bin/check-versions.sh: audit pinned versions (Buildroot, ROCKNIX, wvkbd,
+      ...) against upstream latest; `--update` rewrites them (offline-lab pattern)
+- [ ] Keep the last 2–3 timestamped images in artifacts/ instead of rm -rf
+      (rollback + diffing)
+- [ ] Try BR2_REPRODUCIBLE=y (may fight the ROCKNIX kernel patches; drop if noisy)
+- [ ] Trim the kernel config to the H700 (docs/power.md P1)
 - [x] BR2_PER_PACKAGE_DIRECTORIES for parallel top-level builds
 - [ ] More H700 boards (RG35XX Plus/H/2024, RG40XX, RG CubeXX): DTB + meta only

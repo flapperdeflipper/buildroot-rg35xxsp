@@ -1,0 +1,17 @@
+#!/bin/bash
+# Called by udev when an rfkill device appears. systemd-rfkill restores the
+# last state of known devices; for a device without saved state (first
+# boot) apply the default from power.conf (wifi_default/bluetooth_default).
+set -u
+name="$1" type="$2"
+case "${type}" in
+    wlan)      key=wifi_default ;;
+    bluetooth) key=bluetooth_default ;;
+    *)         exit 0 ;;
+esac
+devpath="$(readlink -f "/sys/class/rfkill/${name}")"
+saved="/var/lib/systemd/rfkill/$(systemd-escape --path "${devpath#/sys}" 2>/dev/null):${type}"
+[[ -e "${saved}" ]] && exit 0
+if [[ "$(rgos-power-conf "${key}" off)" == off ]]; then
+    echo 1 >"/sys/class/rfkill/${name}/soft"
+fi
