@@ -93,6 +93,11 @@ import_wifi() {
     write_network "${ssid}" "${pass}"
     rm -f "${BOOT}/wifi.txt"
     sync
+    # Wi-Fi is off by default (rgos-power); a network on the card means the
+    # user wants it on. The marker covers a Wi-Fi chip that shows up later.
+    mkdir -p /run/rgos && touch /run/rgos/wifi-provisioned
+    rfkill unblock wlan 2>/dev/null || true
+    log "Wi-Fi switched on (network provisioned)"
 }
 
 import_keys

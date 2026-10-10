@@ -1,0 +1,3 @@
+#!/bin/bash
+# udev entry point for power_supply changes; the logic lives in rgos-power.
+exec /usr/bin/rgos-power ac-profile

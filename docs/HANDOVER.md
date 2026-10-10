@@ -12,8 +12,11 @@ setup and usage: docs/buildbox.md.
   (`bin/provision.sh --key … --wifi …` with the card in the Mac fixes that).
 - Wi-Fi/BT fix by the OSK agent: `# CONFIG_RESET_GPIO is not set` (h700
   fragment; pwrseq-simple failed with the reset-gpio fallback).
-- **QEMU 18:12 image = the whole tree (both agents) — `bin/test-qemu` 78/78
-  green**, including oskd, the precise pointer, and suspend/resume. The
+- **QEMU 18:31 image = the whole tree (both agents) — `bin/test-qemu` 83/83
+  green**, including oskd, the precise pointer, rgos-power (idle, profiles,
+  SD-write tuning) and s2idle suspend + RTC wake. The test overrides lid and
+  power key to `screen-off` in ~/.config/rgos/power.conf: QEMU only wakes
+  from s2idle via the RTC alarm, so the defaults (suspend) would hang it. The
   earlier 64-check run also validated the `tests/` pytest-testinfra harness
   (14 passed, 1 skipped; `cd tests && uv run pytest --board qemu-arm64`, or
   `--host ssh://user@<ip>` against a provisioned device).
@@ -32,7 +35,7 @@ everything. What each left behind:
 |---|---|---|
 | On-screen keyboard | **Done**, QEMU-verified | `src/oskd/`, `package/rgos-oskd/`; `rgos-padctl osk on\|off`; `/etc/rgos/oskd.conf` |
 | Pointer precision | **Done** (tap = 2 px nudge, glide after 180 ms) | `src/padd/padd.c`, `mouse_tap`/`mouse_speed` in padd.conf |
-| Power management | **In progress**, approved plan | `docs/plan.md`, `rgos-power` package, `docs/power.md` |
+| Power management | **Implemented, QEMU-verified; device measurements pending** | `docs/plan.md`, `rgos-power` package, `docs/power.md` ("Progress") |
 | Build/test infra | **Done** this session | auto-dirclean in `build-image.sh`; `tests/` (pytest-testinfra) |
 
 Still valid for any number of agents:
@@ -41,14 +44,33 @@ Still valid for any number of agents:
   the whole working tree, including others' uncommitted work.
 - Build VM disk: ~41 GB free; two full outputs fit, a third does not.
 
+## Device findings 2026-10-10 evening (image 18:35 on hardware)
+
+- Works: Wi-Fi from wifi.txt (on despite the off default), mDNS
+  (`ssh user@rgos.local`), s2idle suspend + resume with Wi-Fi back.
+- Buttons don't bounce (evtest: presses >=126 ms, gaps >=55 ms); taps last
+  130-640 ms.
+- OSK pointer bug, fixed in image **19:13** (QEMU 86/86): the kernel drops
+  repeated absolute values, so re-parking the pointer on "g" did nothing
+  after the first time; and fixed pixel steps landed on key edges because
+  wvkbd's rows are staggered. padd now has per-layout key grids
+  (`osk_layout` in padd.conf, wvkbd reports layer switches via rgos-osk
+  `-D` -> `rgos-padctl osk_layout`), warps to key centres and nudges 1 px
+  before a repeated warp. Glide faster: `mouse_tap 2 150`, `mouse_speed 2 16 40`.
+- To verify on hardware with 19:13: OSK typing, pointer speed feel.
+
 ## Next steps (for the next agent)
 
 1. **Commit the tree** — both agents' work is uncommitted and QEMU-validated
-   (78/78). The user does the commits themselves; leave staging to them.
-2. **Flash + verify on hardware** — the **18:18** rg35xxsp image = the same
-   tree as the 78/78 QEMU run (oskd + WiFi fix + precise pointer: tap =
-   2 px nudge, glide after 180 ms; `set mouse_tap`/`mouse_speed` in
-   padd.conf). User flashes with
+   (83/83). The user does the commits themselves; leave staging to them.
+2. **Flash + verify on hardware** — the **18:35** rg35xxsp image = the same
+   tree as the 83/83 QEMU run. Includes rgos-power: lid/power key suspend,
+   idle dim/off/suspend, Wi-Fi + BT off by default, **except** that a card
+   provisioned with wifi.txt switches Wi-Fi on (bootconfig unblocks it; the
+   state is then remembered). Device-only checks: Wi-Fi really comes up on
+   first boot, plus docs/power.md "Still to do on the device". Also contains oskd, the WiFi fix
+   and the precise pointer (tap = 2 px nudge, glide after 180 ms;
+   `set mouse_tap`/`mouse_speed` in padd.conf). User flashes with
    `bin/flash.sh --key ~/.ssh/<key>.pub --wifi "<ssid>" --country NL disk4`,
    then verify: WiFi associates + `ssh user@<ip>`, oskd opens the keyboard
    in foot, pointer precision, brightness (Menu + d-pad up/down). Full suite:

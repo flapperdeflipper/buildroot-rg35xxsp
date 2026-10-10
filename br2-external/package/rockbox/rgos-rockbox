@@ -1,0 +1,23 @@
+#!/bin/bash
+# Start Rockbox full screen (320x240 build shown 2x on 640x480; labwc's
+# window rule for app id "rockbox" makes it full screen) with the pad in
+# nav mode: d-pad = arrows, A = OK, B = back, X = menu, Y = play/pause,
+# L1/R1 = previous/next. The pad mode is restored when Rockbox exits.
+set -u
+mode_file="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/rgos-padd.mode"
+prev="$(cat "${mode_file}" 2>/dev/null || echo mouse)"
+[[ "${prev}" == osk ]] && prev=mouse
+
+# First start: open the file browser in the music folder (SD card if it
+# has one, else ~/Music); Rockbox keeps the rest of its settings itself
+cfg="${HOME}/.config/rockbox.org/config.cfg"
+if [[ ! -e "${cfg}" ]]; then
+    mkdir -p "$(dirname "${cfg}")" "${HOME}/Music"
+    music="${HOME}/Music/"
+    [[ -d /media/sdcard/Music ]] && music=/media/sdcard/Music/
+    printf 'start directory: %s\n' "${music}" >"${cfg}"
+fi
+
+rgos-padctl mode nav 2>/dev/null
+SDL_VIDEO_WAYLAND_WMCLASS=rockbox rockbox --zoom 2 "$@"
+rgos-padctl mode "${prev}" 2>/dev/null

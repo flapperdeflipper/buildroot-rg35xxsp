@@ -42,6 +42,10 @@
     <windowRule identifier="*" type="normal">
       <action name="Maximize" />
     </windowRule>
+    <!-- Rockbox draws its own 2x-scaled 640x480 screen: full screen -->
+    <windowRule identifier="rockbox" serverDecoration="no">
+      <action name="ToggleFullscreen" />
+    </windowRule>
   </windowRules>
 
   <keyboard>

@@ -1,0 +1,42 @@
+From: RGOS
+Subject: [PATCH] sunxi: dram: drop the boot-time sizing test for the suspend stub
+
+U-Boot 2026.07 added a non-power-of-2 DRAM sizing test to mctl_calc_size
+(mctl_check_memory + printf, neither available in the stub's freestanding
+environment, and sizing is irrelevant on the resume path). Revert to the
+2026.01 calculation, which is what the stub was written against. Applied
+only to the suspend stub's private copy of the tree.
+
+---
+--- a/arch/arm/mach-sunxi/dram_dw_helpers.c	2026-10-10 22:22:21.083912062 +0200
++++ b/arch/arm/mach-sunxi/dram_dw_helpers.c	2026-10-10 22:22:20.856028940 +0200
+@@ -143,28 +143,8 @@
+ 
+ unsigned long mctl_calc_size(const struct dram_config *config)
+ {
+-	unsigned long size;
+ 	u8 width = config->bus_full_width ? 4 : 2;
+ 
+ 	/* 8 banks */
+-	size = (1ULL << (config->cols + config->rows + 3)) * width *
+-		config->ranks;
+-
+-	/*
+-	 * There are boards with non-power-of-2 sized DRAM chips, like 1.5GB
+-	 * or 3GB. They are detected as the larger power-of-2 (2GB and 4GB),
+-	 * so test the last quarter for being able to store values.
+-	 */
+-	if (!mctl_check_memory(CFG_SYS_SDRAM_BASE + size / 4 * 3)) {
+-		if (mctl_check_memory(CFG_SYS_SDRAM_BASE + size / 4 * 3 - 64)) {
+-			size = (size / 4) * 3;
+-			debug("capping memory at %ld MB\n", size >> 20);
+-		} else {
+-			printf("DRAM test failure at address 0x%lx\n",
+-			       CFG_SYS_SDRAM_BASE + size / 4 * 3 - 64);
+-			return 0;
+-		}
+-	}
+-
+-	return size;
++	return (1ULL << (config->cols + config->rows + 3)) * width * config->ranks;
+ }

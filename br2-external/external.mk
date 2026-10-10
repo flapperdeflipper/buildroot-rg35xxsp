@@ -3,14 +3,44 @@
 RGOS_ROCKNIX_COMMIT = 03204074ef308f8e195fe35bc7192ac06b1f1050
 RGOS_ROCKNIX_URL = https://raw.githubusercontent.com/ROCKNIX/distribution/$(RGOS_ROCKNIX_COMMIT)
 
+# Deep sleep (PSCI SYSTEM_SUSPEND) on the H700: TF-A patch + the SRAM
+# suspend stubs from rgos-suspend-stub. Used by both the atf package
+# (below) and rgos-suspend-stub (header extraction from the same patch).
+RGOS_ROCKNIX_ATF_PATCH = 001-allwinner-h616-psci-system-suspend.patch
+RGOS_ROCKNIX_ATF_PATCH_URL = $(RGOS_ROCKNIX_URL)/projects/ROCKNIX/packages/tools/atf/patches/H700/$(RGOS_ROCKNIX_ATF_PATCH)
+
 include $(sort $(wildcard $(BR2_EXTERNAL_RGOS_PATH)/package/*/*.mk))
+
+# Apply the ROCKNIX TF-A patch (kailashrs' SRAM-stub system suspend) and
+# embed both stubs; hash-checked via patches/arm-trusted-firmware/. Applied
+# here like the kernel patches above: downloaded, not committed.
+# boot/common.mk (the atf package) is included before this file, so
+# ARM_TRUSTED_FIRMWARE_DEPENDENCIES can no longer be extended; hang the
+# ordering on the patch stamp instead (order-only: a plain prerequisite
+# would be phony and re-run the patch step - applying the patch twice -
+# on every build): stubs install to $(BINARIES_DIR) before TF-A
+# configures and builds.
+ifeq ($(BR2_PACKAGE_RGOS_SUSPEND_STUB),y)
+ARM_TRUSTED_FIRMWARE_EXTRA_DOWNLOADS += $(RGOS_ROCKNIX_ATF_PATCH_URL)
+define ARM_TRUSTED_FIRMWARE_APPLY_ROCKNIX
+	patch -d $(@D) -p1 -N -F2 --no-backup-if-mismatch -s \
+		< $(ARM_TRUSTED_FIRMWARE_DL_DIR)/$(RGOS_ROCKNIX_ATF_PATCH)
+endef
+ARM_TRUSTED_FIRMWARE_POST_PATCH_HOOKS += ARM_TRUSTED_FIRMWARE_APPLY_ROCKNIX
+$(ARM_TRUSTED_FIRMWARE_DIR)/.stamp_patched: | rgos-suspend-stub-install
+ARM_TRUSTED_FIRMWARE_MAKE_OPTS += \
+	SUNXI_SYSTEM_SUSPEND=1 \
+	SUNXI_SUSPEND_STUB=$(BINARIES_DIR)/suspend_stub_lpddr4.bin \
+	SUNXI_SUSPEND_STUB2=$(BINARIES_DIR)/suspend_stub_lpddr3.bin
+endif
 
 # ROCKNIX H700 kernel patches. Downloaded (and hash-checked via
 # patches/linux/linux.hash) like any kernel patch, but applied here instead of
 # through BR2_LINUX_KERNEL_PATCH: Buildroot applies patches with zero fuzz,
-# while ROCKNIX's patches against vanilla 7.2 need patch's default fuzz.
-# 0140/0150 (ROCKNIX joypad driver) are left out: we keep mainline gpio-keys.
-# 0144 is left out too: it edits the RG35XX H's joypad node from 0140.
+# while these are generated against vanilla 7.2 and need patch's default
+# fuzz. 0140/0150 (the joypad driver) are left out: we keep mainline
+# gpio-keys. 0144 is left out too: it edits the RG35XX H's joypad node
+# from 0140.
 RGOS_ROCKNIX_H700_PATCHES = \
 	0002-rg35xx-enable-HDMI-LCD.patch \
 	0003-Update-sun8i_tcon_top.c.patch \
@@ -41,12 +71,12 @@ RGOS_ROCKNIX_H700_PATCHES = \
 	0210-h616-cpu-opp-mark-480MHz-as-suspend-opp.patch \
 	0901-dts-rg35xx-2024-fix-led-1-color.patch
 
-ifeq ($(BR2_RGOS_LINUX_ROCKNIX_H700),y)
+ifeq ($(BR2_RGOS_LINUX_H700_PATCHES),y)
 LINUX_EXTRA_DOWNLOADS += \
 	$(addprefix $(RGOS_ROCKNIX_URL)/projects/ROCKNIX/devices/H700/patches/linux/,$(RGOS_ROCKNIX_H700_PATCHES))
 define RGOS_LINUX_APPLY_ROCKNIX
 	$(foreach p,$(RGOS_ROCKNIX_H700_PATCHES),
-		echo "Applying ROCKNIX $(p)"
+		echo "Applying H700 patch $(p)"
 		patch -d $(@D) -p1 -N -F2 --no-backup-if-mismatch -s < $(LINUX_DL_DIR)/$(p)
 	)
 endef

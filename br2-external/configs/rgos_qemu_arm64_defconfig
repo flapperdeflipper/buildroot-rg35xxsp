@@ -30,3 +30,10 @@ BR2_TARGET_GENERIC_GETTY_PORT="ttyAMA0"
 
 # QEMU-only tweaks (software cursor for screenshots)
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_RGOS_PATH)/rootfs_overlay $(BR2_EXTERNAL_RGOS_PATH)/boards/qemu/rootfs_overlay"
+
+# Evaluation: full-web browser (WebKitGTK + MiniBrowser, package rgos-web).
+# bin/test-qemu checks it starts and its RAM use. Moves to the common
+# defconfig after a RAM/speed check on the device. See docs/webkit.md.
+BR2_PACKAGE_WEBKITGTK=y
+BR2_PACKAGE_WEBKITGTK_SANDBOX=y
+BR2_PACKAGE_RGOS_WEB=y

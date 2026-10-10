@@ -1,0 +1,5 @@
+# Second SD card: rgos-sdcard@<dev>.service checks and mounts it at
+# /media/sdcard; it is bound to the device, so pulling the card stops it.
+# The helper ignores the system card and everything but partition 1.
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="mmcblk[0-9]*", ENV{DEVTYPE}=="disk|partition", \
+  TAG+="systemd", ENV{SYSTEMD_WANTS}+="rgos-sdcard@%k.service"

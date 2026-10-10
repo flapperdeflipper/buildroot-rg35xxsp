@@ -93,11 +93,20 @@ pick_freq() {
 
 sysfs_set() { echo "$2" | as_root tee "$1" >/dev/null 2>&1; }
 
-# CPU: governor + top frequency. GPU (devfreq, Panfrost): the kernel only has
-# simple_ondemand, so the profile sets the min/max frequency limits instead.
-# battery caps both at ~2/3 of the top frequency.
+ac_online() {
+    local d
+    for d in /sys/class/power_supply/*; do
+        [[ "$(cat "${d}/type" 2>/dev/null)" == Mains && "$(cat "${d}/online" 2>/dev/null)" == 1 ]] && return 0
+    done
+    return 1
+}
+
+# CPU: governor + top frequency. GPU (devfreq, Panfrost): the profile sets
+# the min/max frequency limits instead of a devfreq governor; gpu_max_mhz
+# caps the top (600 stock, 648 = the OPP above it).
+# battery caps both at ~2/3 of the stock top frequency.
 profile_apply() {
-    local p="${1:-$(conf profile balanced)}" cpu dev max top cap
+    local p="${1:-$(conf profile balanced)}" cpu dev max top cap gpu_top
     case "${p}" in performance|balanced|battery) ;; *)
         echo "unknown profile: ${p}" >&2; return 2 ;; esac
     for cpu in /sys/devices/system/cpu/cpufreq/policy*; do
@@ -113,23 +122,26 @@ profile_apply() {
                          sysfs_set "${cpu}/scaling_max_freq" "${cap}" ;;
         esac
     done
+    # cpufreq boost gates the 1.512 GHz turbo OPP (patch 0200); absent on
+    # boards without a turbo OPP — the write is skipped then.
+    sysfs_set /sys/devices/system/cpu/cpufreq/boost "$(conf cpu_turbo 0)"
     for dev in /sys/class/devfreq/*; do
         [[ -r "${dev}/available_frequencies" ]] || continue
         read -ra avail <"${dev}/available_frequencies"
         top="$(printf '%s\n' "${avail[@]}" | sort -n | tail -n1)"
+        gpu_top="$(pick_freq $(( $(conf gpu_max_mhz 600) * 1000000 )) "${avail[@]}")"
         cap="$(pick_freq $(( top * 2 / 3 )) "${avail[@]}")"
         case "${p}" in
-            performance) sysfs_set "${dev}/max_freq" "${top}"; sysfs_set "${dev}/min_freq" "${top}" ;;
-            balanced)    sysfs_set "${dev}/min_freq" 0;        sysfs_set "${dev}/max_freq" "${top}" ;;
-            battery)     sysfs_set "${dev}/min_freq" 0;        sysfs_set "${dev}/max_freq" "${cap}" ;;
+            performance) sysfs_set "${dev}/max_freq" "${gpu_top}"; sysfs_set "${dev}/min_freq" "${gpu_top}" ;;
+            balanced)    sysfs_set "${dev}/min_freq" 0;             sysfs_set "${dev}/max_freq" "${gpu_top}" ;;
+            battery)     sysfs_set "${dev}/min_freq" 0;             sysfs_set "${dev}/max_freq" "${cap}" ;;
         esac
     done
-    mkdir -p "${XDG_RUNTIME_DIR:-/tmp}"
-    echo "${p}" >"${XDG_RUNTIME_DIR:-/tmp}/rgos-power.profile"
+    echo "${p}" | as_root tee /run/rgos-power.profile >/dev/null
 }
 
 profile_current() {
-    cat "${XDG_RUNTIME_DIR:-/tmp}/rgos-power.profile" 2>/dev/null || conf profile balanced
+    cat /run/rgos-power.profile 2>/dev/null || conf profile balanced
 }
 
 # ---------------------------------------------------------------- screen
@@ -227,6 +239,10 @@ case "${cmd}" in
         ;;
     wifi|bluetooth) radio "${cmd}" "${1:-state}" ;;
     profile)        if [[ $# -gt 0 ]]; then profile_apply "$1"; else profile_current; fi ;;
+    ac-profile)     # udev (power_supply change): switch profile on AC, if configured
+                    p="$(conf profile_ac "")"
+                    [[ -n "${p}" ]] || exit 0
+                    if ac_online; then profile_apply "${p}"; else profile_apply "$(conf profile balanced)"; fi ;;
     dim)            dim ;;
     undim)          undim ;;
     event)          event "${1:-}" ;;

@@ -1,0 +1,7 @@
+config BR2_PACKAGE_PRETTYPING
+	bool "prettyping"
+	depends on BR2_PACKAGE_BASH
+	help
+	  Wrapper around ping that draws a compact, colourful graph.
+
+	  https://github.com/denilsonsa/prettyping

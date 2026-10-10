@@ -1,0 +1,158 @@
+#!/bin/bash
+# RGOS second SD card (TF2), run as root:
+#   sdcard add <kernel name>      check + mount (rgos-sdcard@.service start)
+#   sdcard remove <kernel name>   unmount (service stop: eject or card pulled)
+#   sdcard format <disk>          one exFAT partition "RGOS-DATA" + folders
+#
+# One card, mounted at /media/sdcard (~/SD links there). Mounted: partition 1
+# or a card without a partition table, with exFAT (Mac/Windows/Linux), FAT32
+# or ext4. Anything else is reported as "unusable" (the menu offers Format).
+# The system card (the one holding /) and RGOS cards in the second slot
+# (labels RGOS-BOOT / rgos-root) are never touched.
+#
+# State for the panel and menu: /run/rgos/sdcard ("<state> <dev> <fstype>
+# <label>"), /run/rgos/sdcard.icon (panel icon name, empty = no icon).
+set -u
+
+MNT=/media/sdcard
+RUN=/run/rgos
+STATE="${RUN}/sdcard"
+DESKTOP_USER=user
+uid="$(id -u "${DESKTOP_USER}")"
+gid="$(id -g "${DESKTOP_USER}")"
+FOLDERS=(Music Videos Pictures Documents Downloads)
+
+log() { echo "rgos-sdcard: $*"; }
+
+# Desktop notification in the user's session (no-op before the desktop runs)
+notify() {
+    local bus="/run/user/${uid}/bus"
+    [[ -S "${bus}" ]] || return 0
+    sudo -u "${DESKTOP_USER}" DBUS_SESSION_BUS_ADDRESS="unix:path=${bus}" \
+        rgos-notify "$@" >/dev/null 2>&1 || true
+}
+
+set_state() {   # state dev fstype label
+    local icon=""
+    mkdir -p "${RUN}"
+    case "$1" in
+        mounted)  icon=media-flash-symbolic ;;
+        unusable|error) icon=dialog-warning-symbolic ;;
+    esac
+    printf '%s\n' "$*" >"${STATE}.tmp" && mv -f "${STATE}.tmp" "${STATE}"
+    printf '%s' "${icon}" >"${STATE}.icon.tmp" && mv -f "${STATE}.icon.tmp" "${STATE}.icon"
+}
+
+state_dev() { awk '{ print $2 }' "${STATE}" 2>/dev/null; }
+
+root_disk() { lsblk -ndo PKNAME "$(findmnt -no SOURCE /)" 2>/dev/null; }
+
+disk_of() {     # mmcblk1p1 -> mmcblk1, mmcblk1 -> mmcblk1
+    local parent
+    parent="$(lsblk -ndo PKNAME "/dev/$1" 2>/dev/null)"
+    echo "${parent:-$1}"
+}
+
+add() {
+    local name="$1" dev="/dev/$1" disk fstype label opts rc ro=""
+    disk="$(disk_of "${name}")"
+    [[ "${disk}" == "$(root_disk)" ]] && exit 0          # the system card
+    if [[ "${name}" != "${disk}" ]]; then
+        [[ "${name}" == "${disk}p1" ]] || exit 0          # only partition 1
+    elif [[ -n "$(lsblk -nlo NAME "${dev}" | sed 1d)" ]]; then
+        exit 0                                           # its partitions get own events
+    fi
+
+    fstype="$(blkid -o value -s TYPE "${dev}" 2>/dev/null)"
+    label="$(blkid -o value -s LABEL "${dev}" 2>/dev/null)"
+    case "${label}" in
+        RGOS-BOOT|rgos-root)
+            log "${dev}: an RGOS system card, not mounting"
+            set_state system "${name}" "${fstype}" "${label}"
+            exit 0 ;;
+    esac
+
+    case "${fstype}" in
+        exfat)
+            fsck.exfat -p "${dev}"; rc=$?
+            opts="uid=${uid},gid=${gid},fmask=0022,dmask=0022,iocharset=utf8,noatime,errors=remount-ro" ;;
+        vfat)
+            fsck.fat -a -w "${dev}"; rc=$?
+            opts="uid=${uid},gid=${gid},fmask=0022,dmask=0022,utf8,shortname=mixed,noatime,flush,errors=remount-ro" ;;
+        ext4|ext3|ext2)
+            e2fsck -p "${dev}"; rc=$?
+            opts="noatime" ;;
+        *)
+            log "${dev}: ${fstype:-no filesystem}, not usable"
+            set_state unusable "${name}" "${fstype:-none}" "${label}"
+            notify "SD card not usable" "${fstype:-No filesystem} — use Format in the SD card menu (exFAT, erases it)" dialog-warning
+            exit 0 ;;
+    esac
+    # fsck: 0 clean, 1 repaired; anything else -> mount read-only
+    if [[ ${rc} -gt 1 ]]; then
+        log "${dev}: fsck exit ${rc}, mounting read-only"
+        ro=",ro"
+    fi
+
+    mkdir -p "${MNT}"
+    if ! mount -t "${fstype}" -o "${opts}${ro}" "${dev}" "${MNT}"; then
+        set_state error "${name}" "${fstype}" "${label}"
+        notify "SD card could not be mounted" "${dev} (${fstype})" dialog-warning
+        exit 1
+    fi
+    set_state mounted "${name}" "${fstype}" "${label}"
+    log "${dev} (${fstype} ${label}) mounted at ${MNT}${ro:+ read-only}"
+    notify "SD card ready${ro:+ (read-only: errors found)}" \
+        "${label:-SD card}: $(df -h --output=avail "${MNT}" | tail -n1 | tr -d ' ') free — ~/SD" media-flash
+}
+
+remove() {
+    local name="$1" was
+    [[ "$(state_dev)" == "${name}" ]] || exit 0          # not the card we track
+    was="$(awk '{ print $1 }' "${STATE}")"
+    if mountpoint -q "${MNT}"; then
+        sync
+        umount "${MNT}" 2>/dev/null || umount -l "${MNT}"
+    fi
+    if [[ -b "/dev/${name}" ]]; then
+        set_state ejected "${name}" - -
+        [[ "${was}" == mounted ]] && notify "SD card can be removed" "" media-flash
+    else
+        rm -f "${STATE}"
+        printf '' >"${STATE}.icon"
+        [[ "${was}" == mounted ]] && notify "SD card was removed" "Use Eject first next time, so nothing gets lost" dialog-warning
+    fi
+    log "${name}: unmounted"
+}
+
+format() {
+    local disk="${1#/dev/}" unit
+    [[ "${disk}" =~ ^mmcblk[0-9]+$ && -b "/dev/${disk}" ]] || { log "not an SD card: ${disk}"; exit 2; }
+    [[ "${disk}" == "$(root_disk)" ]] && { log "refusing to format the system card"; exit 2; }
+
+    # Stop whatever is mounted from this card
+    for unit in $(systemctl list-units --plain --no-legend "rgos-sdcard@${disk}*" | awk '{ print $1 }'); do
+        systemctl stop "${unit}"
+    done
+    mountpoint -q "${MNT}" && umount "${MNT}"
+
+    log "formatting /dev/${disk}: one exFAT partition, label RGOS-DATA"
+    printf 'type=7\n' | sfdisk --quiet --wipe always --wipe-partitions always --label dos "/dev/${disk}" || exit 1
+    udevadm settle
+    udevadm settle    # sfdisk's partition events may already have run a unit
+    mkfs.exfat -L RGOS-DATA "/dev/${disk}p1" || exit 1
+    udevadm settle
+    # Mount it like a newly inserted card (restart: the partition's unit may
+    # have run on the still empty partition), then create the folders
+    systemctl restart "rgos-sdcard@${disk}p1.service"
+    mountpoint -q "${MNT}" || { log "formatted, but not mounted"; exit 1; }
+    sudo -u "${DESKTOP_USER}" mkdir -p "${FOLDERS[@]/#/${MNT}/}"
+    log "/dev/${disk} formatted and mounted"
+}
+
+case "${1:-}" in
+    add)    add "${2:?device}" ;;
+    remove) remove "${2:?device}" ;;
+    format) format "${2:?disk}" ;;
+    *)      echo "usage: $0 add|remove <dev> | format <disk>" >&2; exit 2 ;;
+esac

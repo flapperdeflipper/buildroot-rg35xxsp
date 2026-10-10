@@ -1,0 +1,34 @@
+#!/bin/bash
+# Desktop notification (shown by mako) over D-Bus, without libnotify.
+#   rgos-notify [-r tag] [-t ms] [-v percent] <summary> [body] [icon]
+#   -r tag      replace the previous notification with this tag (e.g. a
+#               volume popup updates in place instead of stacking)
+#   -t ms       timeout (default 6000)
+#   -v percent  progress bar (volume, brightness)
+set -u
+
+tag="" timeout=6000 value=""
+while getopts "r:t:v:" opt; do
+    case "${opt}" in
+        r) tag="${OPTARG}" ;;
+        t) timeout="${OPTARG}" ;;
+        v) value="${OPTARG}" ;;
+        *) exit 2 ;;
+    esac
+done
+shift $((OPTIND - 1))
+summary="${1:?summary}" body="${2:-}" icon="${3:-}"
+
+idfile="${XDG_RUNTIME_DIR:-/tmp}/rgos-notify.${tag}"
+replaces=0
+[[ -n "${tag}" ]] && replaces="$(cat "${idfile}" 2>/dev/null || echo 0)"
+
+hints=(0)
+[[ "${value}" =~ ^[0-9]+$ ]] && hints=(1 value i "${value}")
+
+id="$(busctl --user call org.freedesktop.Notifications /org/freedesktop/Notifications \
+    org.freedesktop.Notifications Notify susssasa{sv}i \
+    RGOS "${replaces}" "${icon}" "${summary}" "${body}" 0 "${hints[@]}" "${timeout}" \
+    2>/dev/null | awk '{ print $2 }')"
+[[ -n "${tag}" && -n "${id}" ]] && echo "${id}" >"${idfile}"
+exit 0

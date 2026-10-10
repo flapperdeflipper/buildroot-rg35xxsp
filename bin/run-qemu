@@ -6,19 +6,24 @@
 #
 # Usage:
 #   bin/run-qemu [--fresh] [--headless] [--tcg] [--audio]
-#                [--key <pubkey>] [--wifi <ssid>] [--country CC]
+#                [--key <pubkey>] [--wifi <ssid>] [--country CC] [--sdcard <file>]
 #
 #   --fresh     start from a fresh copy of the built image (resets all state)
-#   --headless  no window; serial log in tmp/qemu/serial.log, use
+#   --headless  no window; serial log in <state>/serial.log, use
 #               bin/qemu-screenshot for screenshots (automated testing)
 #   --tcg       software CPU emulation instead of hvf (slow; non-Apple hosts)
 #   --audio     add a virtio sound card (CoreAudio on macOS)
 #   --key, --wifi, --country
 #               provision the disk's boot partition before booting, like a
 #               real card (bin/provision.sh); --key is needed for SSH
+#   --sdcard    raw image file as a second SD card (sdhci, shows up as
+#               mmcblk*, like TF2 on the device); size: a power of 2
 #
 # While running:
 #   ssh -p 2222 user@localhost        (key from --key; no password logins)
+#
+# Several VMs: RGOS_QEMU_INSTANCE=N uses tmp/qemu-N and SSH port 2222+N
+# (default 0: tmp/qemu, 2222). An instance with a running VM is refused.
 #   bin/qemu-pad                      drive the simulated handheld buttons
 #   bin/qemu-screenshot [file.png]    screenshot (default tmp/qemu/screenshot.png)
 #   Window: Ctrl+Option+G releases the mouse; serial console: Ctrl-A X quits
@@ -30,11 +35,13 @@ BASEDIR="$(cd "$(dirname "${0}")/.." && pwd)"
 source "${BASEDIR}/bin/lib/common.sh"
 
 IMAGES="${BASEDIR}/artifacts/qemu-arm64"
-STATE="${BASEDIR}/tmp/qemu"
+# shellcheck source=lib/qemu.sh
+source "${BASEDIR}/bin/lib/qemu.sh"
+STATE="${QEMU_STATE}"
 DISK="${STATE}/disk.img"
 DISK_SIZE="${RGOS_QEMU_DISK_SIZE:-8G}"
 
-FRESH=0 HEADLESS=0 TCG=0 AUDIO=0
+FRESH=0 HEADLESS=0 TCG=0 AUDIO=0 SDCARD=""
 PROVISION=()
 while [[ "${#}" -gt 0 ]]; do
     case "${1}" in
@@ -42,13 +49,26 @@ while [[ "${#}" -gt 0 ]]; do
         --headless) HEADLESS=1 ;;
         --tcg)      TCG=1 ;;
         --audio)    AUDIO=1 ;;
+        --sdcard)   SDCARD="${2:?--sdcard needs an image file}"; shift ;;
         --key|--wifi|--country) PROVISION+=("${1}" "${2:?${1} needs a value}"); shift ;;
-        *) sed -n '3,26p' "${0}"; exit 2 ;;
+        *) sed -n '3,32p' "${0}"; exit 2 ;;
     esac
     shift
 done
 
 require_tools qemu-system-aarch64 qemu-img gzip
+
+if pid="$(qemu_running_pid)"; then
+    log_err "QEMU instance ${QEMU_INSTANCE} is already running (pid ${pid}): stop it (kill ${pid})"
+    log_err "or start another one: RGOS_QEMU_INSTANCE=<n> ${0##*/} ..."
+    exit 1
+fi
+# Claim the instance while preparing its disk (bin/test-qemu holds the claim
+# for its whole run and sets RGOS_QEMU_CLAIMED)
+if [[ -z "${RGOS_QEMU_CLAIMED:-}" ]]; then
+    qemu_claim || { log_err "QEMU instance ${QEMU_INSTANCE} is being started by someone else"; exit 1; }
+    trap qemu_release EXIT
+fi
 
 [[ -f "${IMAGES}/Image" && -f "${IMAGES}/rgos-qemu-arm64.img.gz" ]] || {
     log_err "No QEMU build in ${IMAGES}. Run: bin/buildbox.sh build qemu-arm64"
@@ -83,7 +103,7 @@ args=(
     -append "$(cat "${IMAGES}/cmdline.txt")"
     -drive "if=none,id=hd0,format=raw,file=${DISK}"
     -device virtio-blk-pci,drive=hd0
-    -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22"
+    -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:${QEMU_SSH_PORT}-:22"
     -device virtio-net-pci,netdev=net0
     -device virtio-rng-pci
     -device virtio-gpu-pci,xres=640,yres=480
@@ -106,6 +126,11 @@ if [[ "${AUDIO}" -eq 1 ]]; then
     args+=(-device virtio-sound-pci,audiodev=snd0)
 fi
 
+if [[ -n "${SDCARD}" ]]; then
+    args+=(-device sdhci-pci -drive "if=none,id=sd0,format=raw,file=${SDCARD}"
+           -device sd-card,drive=sd0,id=sdcard0)
+fi
+
 if [[ "${HEADLESS}" -eq 1 ]]; then
     args+=(-display none -serial "file:${STATE}/serial.log" -daemonize -pidfile "${STATE}/qemu.pid")
     log "Starting headless (pid file ${STATE}/qemu.pid, serial log ${STATE}/serial.log)"
@@ -114,7 +139,7 @@ else
         args+=(-display cocoa,zoom-to-fit=on)
     fi
     args+=(-serial mon:stdio)
-    log "SSH (needs --key): ssh -p 2222 user@localhost — pad: bin/qemu-pad — quit: Ctrl-A X"
+    log "SSH (needs --key): ssh -p ${QEMU_SSH_PORT} user@localhost — pad: bin/qemu-pad — quit: Ctrl-A X"
 fi
 
 exec qemu-system-aarch64 "${args[@]}"

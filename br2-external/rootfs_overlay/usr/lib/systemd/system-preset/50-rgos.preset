@@ -1,6 +1,7 @@
 # Services enabled on RGOS (systemctl preset-all runs at image build time)
 enable rgos-growfs.service
 enable rgos-zram.service
+enable rgos-zram-recompress.timer
 enable rgos-session.service
 enable systemd-networkd.service
 enable systemd-resolved.service

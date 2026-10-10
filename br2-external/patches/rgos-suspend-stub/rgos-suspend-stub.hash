@@ -1,0 +1,7 @@
+# Sources of rgos-suspend-stub. The main source is the U-Boot tarball
+# (hash from Buildroot's boot/uboot/uboot.hash, shared download); the stub
+# and the ROCKNIX TF-A patch (header extraction) come as extra downloads.
+sha256  78e8bfc382fe388f9b55aa1daf8c563522a037779b5d4c349d1415e381f1243e  u-boot-2026.07.tar.bz2
+# Extra downloads are stored under their URL basename (the commit sha here)
+sha256  3698da9aad40c26c10f6aa31f8366158914e0a351d31f1084c6b8032147f4616  712653d11230b2450061ddb8e25f31e072da7a48.tar.gz
+sha256  6928fc3eb21a47c77887c6226269e7da8f7795d02235b8bda59b56fa316f3725  001-allwinner-h616-psci-system-suspend.patch

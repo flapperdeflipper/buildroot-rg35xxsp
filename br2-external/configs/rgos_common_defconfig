@@ -100,7 +100,13 @@ BR2_PACKAGE_BLUEZ5_UTILS_CLIENT=y
 BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_HID=y
 BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_AUDIO=y
 
-# Audio (plain ALSA for now; PipeWire comes with the media phase)
+# Audio: PipeWire + WirePlumber (user services in the desktop session,
+# enabled via /etc/systemd/user/default.target.wants), with the Pulse
+# compatibility socket for SDL/mpv. alsa-utils stays: amixer fallback
+# (rgos-volume), alsamixer, aplay, speaker-test.
+BR2_PACKAGE_PIPEWIRE=y
+BR2_PACKAGE_WIREPLUMBER=y
+BR2_PACKAGE_LUA=y
 BR2_PACKAGE_ALSA_UTILS=y
 BR2_PACKAGE_ALSA_UTILS_AMIXER=y
 BR2_PACKAGE_ALSA_UTILS_ALSAMIXER=y
@@ -135,8 +141,10 @@ BR2_PACKAGE_HICOLOR_ICON_THEME=y
 # swaybg wallpaper; apps: foot (terminal), Mousepad (notes), PCManFM (files).
 # See package/rgos-desktop.
 BR2_PACKAGE_RGOS_DESKTOP=y
-# Power management: idle/sleep/radios/profiles/battery guard (docs/plan.md)
+# Power management: idle/sleep/radios/profiles/battery guard (rgos-power)
 BR2_PACKAGE_RGOS_POWER=y
+BR2_PACKAGE_RGOS_SDCARD=y
+BR2_PACKAGE_MAKO=y
 BR2_PACKAGE_PCMANFM=y
 BR2_PACKAGE_MOUSEPAD=y
 
@@ -150,7 +158,7 @@ BR2_TARGET_ROOTFS_EXT2_4=y
 BR2_TARGET_ROOTFS_EXT2_LABEL="rgos-root"
 # Sized to the contents (~380 MiB) plus headroom, so the image stays small
 # and quick to flash; the first boot grows it to fill the card.
-BR2_TARGET_ROOTFS_EXT2_SIZE="512M"
+BR2_TARGET_ROOTFS_EXT2_SIZE="1024M"
 BR2_TARGET_ROOTFS_EXT2_RESBLKS=1
 # BR2_TARGET_ROOTFS_TAR is not set
 
@@ -159,3 +167,87 @@ BR2_PACKAGE_HOST_GENIMAGE=y
 BR2_PACKAGE_HOST_DOSFSTOOLS=y
 BR2_PACKAGE_HOST_MTOOLS=y
 BR2_PACKAGE_HOST_UBOOT_TOOLS=y
+
+# Apps (phase 2) -------------------------------------------------
+# Prebuilt host toolchains for the Rust and Go tools (no compiler bootstrap)
+BR2_PACKAGE_HOST_RUSTC=y
+BR2_PACKAGE_HOST_RUST_BIN=y
+BR2_PACKAGE_HOST_GO=y
+BR2_PACKAGE_HOST_GO_BIN=y
+# Wide-character (UTF-8) ncurses: mc, WeeChat, htop box drawing
+BR2_PACKAGE_NCURSES=y
+BR2_PACKAGE_NCURSES_WCHAR=y
+# CLI: search, files, text
+BR2_PACKAGE_RIPGREP=y
+BR2_PACKAGE_FD=y
+BR2_PACKAGE_BAT=y
+BR2_PACKAGE_ZOXIDE=y
+BR2_PACKAGE_TEALDEER=y
+BR2_PACKAGE_TREE=y
+BR2_PACKAGE_NCDU=y
+BR2_PACKAGE_MC=y
+BR2_PACKAGE_YQ=y
+BR2_PACKAGE_P7ZIP=y
+BR2_PACKAGE_P7ZIP_7ZA=y
+BR2_PACKAGE_ZIP=y
+BR2_PACKAGE_SQLITE=y
+# CLI: debugging and network
+BR2_PACKAGE_LSOF=y
+BR2_PACKAGE_STRACE=y
+BR2_PACKAGE_TCPDUMP=y
+BR2_PACKAGE_IPERF3=y
+BR2_PACKAGE_MTR=y
+BR2_PACKAGE_NMAP=y
+BR2_PACKAGE_NMAP_NMAP=y
+BR2_PACKAGE_NGREP=y
+BR2_PACKAGE_NETCAT_OPENBSD=y
+BR2_PACKAGE_MINICOM=y
+# CLI: development
+BR2_PACKAGE_GIT=y
+BR2_PACKAGE_GNUPG2=y
+BR2_PACKAGE_PYTHON3=y
+BR2_PACKAGE_PYTHON3_SSL=y
+BR2_PACKAGE_PYTHON3_SQLITE=y
+BR2_PACKAGE_PYTHON3_READLINE=y
+BR2_PACKAGE_PYTHON3_CURSES=y
+BR2_PACKAGE_PYTHON3_UNICODEDATA=y
+BR2_PACKAGE_PYTHON3_ZLIB=y
+BR2_PACKAGE_PYTHON3_BZIP2=y
+BR2_PACKAGE_PYTHON3_XZ=y
+BR2_PACKAGE_PYTHON3_PYEXPAT=y
+# Video player (also used by the YouTube app)
+BR2_PACKAGE_FFMPEG=y
+BR2_PACKAGE_FFMPEG_GPL=y
+BR2_PACKAGE_FFMPEG_SWSCALE=y
+BR2_PACKAGE_MPV=y
+# Web browser (light)
+BR2_PACKAGE_NETSURF=y
+BR2_PACKAGE_NETSURF_GTK3=y
+# Own packages (br2-external/package)
+BR2_PACKAGE_GEANY=y
+BR2_PACKAGE_WEECHAT=y
+BR2_PACKAGE_YT_DLP=y
+BR2_PACKAGE_RGOS_YOUTUBE=y
+BR2_PACKAGE_BTOP=y
+BR2_PACKAGE_FZF=y
+BR2_PACKAGE_GLOW=y
+BR2_PACKAGE_PROGRESS=y
+BR2_PACKAGE_PRETTYPING=y
+# Character-set converters (glibc iconv): NetSurf, Python codecs, mail/IRC.
+# Western + Unicode only; the full set is ~8.7 MB.
+BR2_TOOLCHAIN_GLIBC_GCONV_LIBS_COPY=y
+BR2_TOOLCHAIN_GLIBC_GCONV_LIBS_LIST="ISO8859-1 ISO8859-2 ISO8859-15 CP1250 CP1251 CP1252 IBM437 IBM850 KOI8-R UTF-16 UTF-32 UTF-7 UNICODE"
+# SDL2 (Rockbox, games): Wayland in the desktop, KMS/DRM full screen
+BR2_PACKAGE_SDL2=y
+BR2_PACKAGE_SDL2_WAYLAND=y
+BR2_PACKAGE_SDL2_KMSDRM=y
+BR2_PACKAGE_SDL2_OPENGLES=y
+BR2_PACKAGE_ROCKBOX=y
+# SDR (RTL2832U dongles; the kernel keeps its DVB driver off them):
+# rtl_* tools, rtl_433 (433/868 MHz sensors), dump1090 (ADS-B), SoapySDR
+BR2_PACKAGE_LIBRTLSDR=y
+BR2_PACKAGE_LIBRTLSDR_DETACH_DRIVER=y
+BR2_PACKAGE_RTL_433=y
+BR2_PACKAGE_DUMP1090=y
+BR2_PACKAGE_SOAPY_SDR=y
+BR2_PACKAGE_SOAPY_SDR_APPS=y

@@ -1,0 +1,3 @@
+# Locally computed (vendored by Buildroot)
+sha256  077c0d8a993c55872bb6635bd4821985adc2b7da08c61a1251511f43582351d9  glow-3.0.0-go2.tar.gz
+sha256  4e48affb643d6a920b82562a7bcb390ce19e04ee63fbeef22f3234bd0c410ef1  LICENSE

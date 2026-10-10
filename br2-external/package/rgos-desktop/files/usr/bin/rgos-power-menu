@@ -1,16 +1,19 @@
 #!/bin/bash
-# Power menu (Menu+Start on the pad, Super+Escape on a keyboard)
+# Power menu (Menu+Start on the pad, Super+Escape on a keyboard, the power
+# button in the panel)
 set -u
 
 choice="$(printf '%s\n' \
+    "Suspend" \
     "Screen off" \
     "Game mode (release pad)" \
     "Restart desktop" \
     "Reboot" \
     "Power off" \
-    | fuzzel --dmenu --prompt "Power: " --lines 5)"
+    | fuzzel --dmenu --prompt "Power: " --lines 6)"
 
 case "${choice}" in
+    "Suspend")                 rgos-power suspend ;;
     "Screen off")              rgos-screen off ;;
     "Game mode (release pad)") rgos-padctl mode passthrough ;;
     "Restart desktop")         sudo -n systemctl restart rgos-session.service ;;

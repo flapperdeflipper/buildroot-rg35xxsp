@@ -1,0 +1,8 @@
+config BR2_PACKAGE_RGOS_YOUTUBE
+	bool "rgos-youtube"
+	depends on BR2_PACKAGE_MPV
+	depends on BR2_PACKAGE_PYTHON3
+	select BR2_PACKAGE_YT_DLP
+	help
+	  RGOS YouTube app: search, pick from a pad-friendly list, play in
+	  mpv (yt-dlp, capped at 480p).

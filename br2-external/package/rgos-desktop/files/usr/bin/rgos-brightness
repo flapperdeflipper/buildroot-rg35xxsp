@@ -27,3 +27,9 @@ esac
 
 busctl call org.freedesktop.login1 /org/freedesktop/login1/session/auto \
     org.freedesktop.login1.Session SetBrightness ssu backlight "${dev}" "${new}"
+
+# On-screen feedback for the keys only (idle dimming sets a percentage)
+if [[ "${1}" == up || "${1}" == down ]]; then
+    pct=$(( new * 100 / max ))
+    rgos-notify -r brightness -t 1500 -v "${pct}" "Brightness ${pct}%" "" display-brightness-symbolic
+fi

@@ -16,6 +16,7 @@ Set ThicknessHint = "26px"
 # Update the pad mode label when padd writes the file (no 1 s polling)
 Function SfwbarInit() {
   FileTrigger("/run/user/1000/rgos-padd.mode", "rgos-padmode")
+  FileTrigger("/run/rgos/sdcard.icon", "rgos-sdcard")
 }
 
 include "winops.widget"
@@ -57,6 +58,15 @@ bar {
     tooltip = "Pad mode (tap MENU to switch pointer / keys)"
   }
 
+  # Second SD card: icon while one is in (warning icon: not usable)
+  button {
+    value = Read("/run/rgos/sdcard.icon")
+    trigger = "rgos-sdcard"
+    style = "module"
+    tooltip = "SD card: open, eject, format"
+    action = Exec("rgos-sdcard menu")
+  }
+
   widget "network.widget"
   widget "bluez.widget" {
     scan_timeout = 20;
@@ -78,12 +88,13 @@ bar {
   widget "battery.widget" {
     simple_icon = False;
   }
-  widget "session.widget" {
-    session_actions = [
-      ["system-log-out", "Restart desktop", "sudo -n systemctl restart rgos-session.service"],
-      ["system-reboot", "Reboot", "sudo -n systemctl reboot"],
-      ["system-shutdown", "Power off", "sudo -n systemctl poweroff"]
-    ];
+  # Same power menu as Menu+Start (sfwbar's session widget needs icons we
+  # don't ship and its confirm row didn't react to clicks)
+  button {
+    value = "system-shutdown-symbolic"
+    style = "module"
+    tooltip = "Power: suspend, reboot, power off"
+    action = Exec("rgos-power-menu")
   }
   widget "clock.widget" {
     time_format = "%H:%M"

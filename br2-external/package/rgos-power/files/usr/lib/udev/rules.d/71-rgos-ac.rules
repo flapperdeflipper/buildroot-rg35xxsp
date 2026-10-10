@@ -1,0 +1,3 @@
+# Switch power profile when external power (dis)connects, if profile_ac is
+# set. The script exits immediately when it is not.
+ACTION=="change", SUBSYSTEM=="power_supply", RUN+="/usr/libexec/rgos/ac-profile"

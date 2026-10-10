@@ -3,14 +3,14 @@
 
 BR2_cortex_a53=y
 
-# Kernel — Linux 7.2 + the ROCKNIX H700 patch set (display engine DE33,
-# panel, PWM backlight, OTG, suspend fixes), fetched at build time from a
-# pinned ROCKNIX commit and applied by external.mk (RGOS_ROCKNIX_*).
+# Kernel — Linux 7.2 + the H700 patch set (display engine DE33, panel, PWM
+# backlight, OTG, suspend fixes), fetched at build time from a pinned
+# upstream commit and applied by external.mk.
 BR2_LINUX_KERNEL=y
 BR2_LINUX_KERNEL_CUSTOM_TARBALL=y
 BR2_LINUX_KERNEL_CUSTOM_TARBALL_LOCATION="https://cdn.kernel.org/pub/linux/kernel/v7.x/linux-7.2.tar.xz"
 BR2_LINUX_KERNEL_PATCH="$(BR2_EXTERNAL_RGOS_PATH)/boards/h700/linux-patches"
-BR2_RGOS_LINUX_ROCKNIX_H700=y
+BR2_RGOS_LINUX_H700_PATCHES=y
 BR2_LINUX_KERNEL_USE_ARCH_DEFAULT_CONFIG=y
 BR2_LINUX_KERNEL_CONFIG_FRAGMENT_FILES="$(BR2_EXTERNAL_RGOS_PATH)/boards/common/linux.fragment $(BR2_EXTERNAL_RGOS_PATH)/boards/h700/linux.fragment"
 BR2_LINUX_KERNEL_DTS_SUPPORT=y
@@ -49,6 +49,8 @@ BR2_TARGET_UBOOT_CUSTOM_MAKEOPTS="SCP=/dev/null"
 
 # Second U-Boot build for units with LPDDR3 memory (same source, other DRAM params)
 BR2_PACKAGE_RGOS_UBOOT_DDR3=y
+# H700 deep sleep: SRAM suspend stubs + patched TF-A (PSCI SYSTEM_SUSPEND)
+BR2_PACKAGE_RGOS_SUSPEND_STUB=y
 
 # H700-specific rootfs files (panel module loading)
 BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_RGOS_PATH)/rootfs_overlay $(BR2_EXTERNAL_RGOS_PATH)/boards/h700/rootfs_overlay"

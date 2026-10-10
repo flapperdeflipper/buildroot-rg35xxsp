@@ -25,7 +25,11 @@ import termios
 import time
 import tty
 
-SOCK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tmp", "qemu", "pad.sock")
+BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+# QEMU instance (bin/lib/qemu.sh): RGOS_QEMU_INSTANCE=N -> tmp/qemu-N
+_INSTANCE = int(os.environ.get("RGOS_QEMU_INSTANCE") or 0)
+STATE = os.path.join(BASE, "tmp", "qemu" if _INSTANCE == 0 else f"qemu-{_INSTANCE}")
+SOCK = os.path.join(STATE, "pad.sock")
 TAP_MS = 80
 
 KEYMAP = {

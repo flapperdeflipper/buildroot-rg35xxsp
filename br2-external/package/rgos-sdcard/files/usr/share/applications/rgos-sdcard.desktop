@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SD card
+Comment=Second SD card: open, eject, format
+Exec=rgos-sdcard menu
+Icon=media-flash
+Categories=System;
+Terminal=false

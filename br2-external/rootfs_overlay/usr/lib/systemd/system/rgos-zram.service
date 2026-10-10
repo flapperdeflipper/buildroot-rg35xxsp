@@ -9,7 +9,11 @@ ConditionPathExists=!/dev/zram0
 Type=oneshot
 RemainAfterExit=yes
 ExecStartPre=/sbin/modprobe zram num_devices=1
-ExecStart=/bin/sh -c 'zramctl /dev/zram0 --algorithm zstd --size 512M && mkswap /dev/zram0 && swapon --priority 100 /dev/zram0'
+# lzo-rle primary (cheap per page on the A53); zstd registered as a
+# secondary algorithm so idle pages can be recompressed with it (see
+# rgos-zram-recompress.timer). recomp_algorithm must be written before
+# disksize initialises the device.
+ExecStart=/bin/sh -c 'echo lzo-rle > /sys/block/zram0/comp_algorithm && echo "algo=zstd priority=1" > /sys/block/zram0/recomp_algorithm && echo 536870912 > /sys/block/zram0/disksize && mkswap /dev/zram0 && swapon --priority 100 /dev/zram0'
 ExecStop=/sbin/swapoff /dev/zram0
 
 [Install]

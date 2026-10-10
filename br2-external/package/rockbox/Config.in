@@ -1,0 +1,12 @@
+config BR2_PACKAGE_ROCKBOX
+	bool "rockbox"
+	depends on BR2_PACKAGE_SDL2
+	depends on BR2_INSTALL_LIBSTDCPP
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	help
+	  Rockbox music player as a desktop application (SDL), built for a
+	  320x240 screen and shown 2x scaled. Plays FLAC, ALAC, MP3, Opus,
+	  Vorbis, trackers, ...; patched for keyboard / gamepad control.
+	  Started by rgos-rockbox.
+
+	  https://www.rockbox.org/

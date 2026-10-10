@@ -11,10 +11,14 @@
 #   build-image.sh --make <board> <target>  # run a buildroot make target (e.g. linux-rebuild)
 #
 # Layout on the VM:
-#   ~/buildroot            buildroot source tree
-#   ~/work                 synced br2-external/, bin/, src/, .config
+#   ~/buildroot            buildroot source tree (shared by all boards)
+#   ~/work/<board>         synced br2-external/, bin/, src/, .config (per board,
+#                          so syncing one board never changes another's build)
 #   ~/output-<board>       buildroot O= dir (kept between builds for incremental work)
 #   ~/artifacts/<board>    final images
+#   ~/.locks/              board-<board>: one job per board (build/make/check/
+#                          prune); buildroot: shared while building, exclusive
+#                          while re-patching
 #
 set -e -u -o pipefail
 
@@ -38,7 +42,7 @@ shift
 
 NPROC="$(nproc)"
 BUILDROOT="${HOME}/buildroot"
-WORK="${HOME}/work"
+WORK="$(cd "$(dirname "${0}")/.." && pwd)"
 OUT="${HOME}/output-${BOARD}"
 ARTIFACTS="${HOME}/artifacts/${BOARD}"
 
@@ -46,15 +50,25 @@ export BR2_DL_DIR="${HOME}/downloads"
 
 BR_MAKE=(make -C "${BUILDROOT}" O="${OUT}" BR2_EXTERNAL="${WORK}/br2-external")
 
-# A full build may be running (detached, see buildbox.sh). Checks, make
-# targets and pruning must not reset the Buildroot tree or rewrite .config
-# underneath it.
-STATUS_FILE="${HOME}/build-${BOARD}.status"
-if [[ "${MAKE_ONLY}${CHECK_ONLY}${PRUNE_ONLY}" != 000 ]] \
-   && [[ "$(cat "${STATUS_FILE}" 2>/dev/null)" == running ]] \
-   && pgrep -f "[b]uild-image.sh ${BOARD}\$" >/dev/null; then
-    log_err "A ${BOARD} build is running; wait for it (bin/buildbox.sh follow ${BOARD})"
+# One job per board at a time: a build, make, check or prune shares the
+# output dir. The lock lives as long as this process (no stale state).
+mkdir -p "${HOME}/.locks"
+exec 8>"${HOME}/.locks/board-${BOARD}"
+if ! flock -n 8; then
+    log_err "${BOARD} is busy (build/make/check/prune running); follow it: bin/buildbox.sh follow ${BOARD}"
     exit 1
+fi
+
+# Full builds: log + status for buildbox.sh follow from the very start, so
+# an early failure is reported instead of leaving "running" behind
+FULL_BUILD=0
+[[ "${MAKE_ONLY}${CHECK_ONLY}${PRUNE_ONLY}" == 000 ]] && FULL_BUILD=1
+if [[ "${FULL_BUILD}" -eq 1 ]]; then
+    LOG_FILE="${HOME}/build-${BOARD}.log"
+    STATUS_FILE="${HOME}/build-${BOARD}.status"
+    exec > >(tee "${LOG_FILE}") 2>&1
+    echo running >"${STATUS_FILE}"
+    trap 'echo $? >"${STATUS_FILE}"' EXIT
 fi
 
 # Local-source packages keep their .stamp_* across source changes, so a plain
@@ -63,8 +77,9 @@ fi
 # so the next build re-copies them (cheap: ccache keeps the compile cache).
 function dirclean_changed_locals() {
     local pkg src stamp new build_dir
-    for pkg in rgos-desktop rgos-oskd rgos-padd rgos-padsim; do
-        if [[ "${pkg}" == rgos-desktop ]]; then
+    mkdir -p "${OUT}"   # a clean build has no output dir yet
+    for pkg in rgos-desktop rgos-power rgos-youtube rgos-sdcard rgos-web rgos-oskd rgos-padd rgos-padsim; do
+        if [[ -d "${WORK}/br2-external/package/${pkg}/files" ]]; then
             src="${WORK}/br2-external/package/${pkg}/files"
         else
             src="${WORK}/src/${pkg#rgos-}"
@@ -84,23 +99,37 @@ function dirclean_changed_locals() {
         done
     done
 }
-dirclean_changed_locals
 
 
 # Pristine pinned Buildroot + our patches (buildroot-patches/*.patch), e.g.
-# package bumps that can't be done from a BR2_EXTERNAL tree. Re-applied on
-# every run, so the tree always matches the repo.
+# package bumps that can't be done from a BR2_EXTERNAL tree. The tree is
+# shared by all boards: it is only reset and re-patched when the version or
+# the patches changed (stamp), and only when no other board is building
+# (exclusive lock); every job then holds a shared lock until it ends.
 function prepare_buildroot() {
-    local patch
-    git -C "${BUILDROOT}" fetch -q --tags origin "refs/tags/${BUILDROOT_VERSION}" 2>/dev/null || true
-    git -C "${BUILDROOT}" checkout -q -f "${BUILDROOT_VERSION}"
-    git -C "${BUILDROOT}" clean -q -fd
-    for patch in "${WORK}"/buildroot-patches/*.patch; do
-        [[ -f "${patch}" ]] || continue
-        git -C "${BUILDROOT}" apply "${patch}" || { log_err "Cannot apply ${patch##*/}"; exit 1; }
-    done
+    local patch want stamp="${BUILDROOT}/.rgos-prepared"
+    want="$( { echo "${BUILDROOT_VERSION}"; cat "${WORK}"/buildroot-patches/*.patch 2>/dev/null; } | md5sum | cut -d' ' -f1)"
+    exec 9>"${HOME}/.locks/buildroot"
+    if [[ "$(cat "${stamp}" 2>/dev/null)" != "${want}" ]]; then
+        if ! flock -n -x 9; then
+            log_err "Buildroot needs re-patching (version/patches changed), but another"
+            log_err "board's job is using it; retry when that is done"
+            exit 1
+        fi
+        log "Preparing Buildroot ${BUILDROOT_VERSION} + buildroot-patches/"
+        git -C "${BUILDROOT}" fetch -q --tags origin "refs/tags/${BUILDROOT_VERSION}" 2>/dev/null || true
+        git -C "${BUILDROOT}" checkout -q -f "${BUILDROOT_VERSION}"
+        git -C "${BUILDROOT}" clean -q -fd
+        for patch in "${WORK}"/buildroot-patches/*.patch; do
+            [[ -f "${patch}" ]] || continue
+            git -C "${BUILDROOT}" apply "${patch}" || { log_err "Cannot apply ${patch##*/}"; exit 1; }
+        done
+        echo "${want}" >"${stamp}"
+    fi
+    flock -s 9   # converts the exclusive lock, or waits for a re-patch to end
 }
 prepare_buildroot
+dirclean_changed_locals
 
 # Reclaim disk. Packages that are fully installed don't need their build
 # tree again: the results live in per-package/. Two boards with LLVM, Clang,
@@ -180,15 +209,9 @@ check_config || { log_err "Config check failed (see above)"; exit 1; }
 log "Config OK"
 [[ "${CHECK_ONLY}" -eq 1 ]] && exit 0
 
-# Full build from here on: log + status for buildbox.sh follow
-LOG_FILE="${HOME}/build-${BOARD}.log"
-STATUS_FILE="${HOME}/build-${BOARD}.status"
-exec > >(tee "${LOG_FILE}") 2>&1
+# Full build from here on (log + status were set up at the start;
 # buildbox.sh follows the log and reads the exit code from the status file,
-# so a dropped SSH connection never kills or loses a build.
-echo running >"${STATUS_FILE}"
-trap 'echo $? >"${STATUS_FILE}"' EXIT
-
+# so a dropped SSH connection never kills or loses a build)
 # Per-package directories: build several packages at once (top-level -j),
 # each with half the cores, so big single packages still go fast
 TOP_JOBS=$(( NPROC / 2 > 1 ? NPROC / 2 : 1 ))
@@ -205,5 +228,13 @@ for img in "${OUT}"/images/rgos-*.img; do
     pigz -9 --force --keep --stdout "${img}" >"${ARTIFACTS}/$(basename "${img}").gz"
 done
 cp -v "${OUT}/images/Image" "${OUT}/images/cmdline.txt" "${OUT}"/images/*.dtb "${ARTIFACTS}/" 2>/dev/null || true
+
+# Software bill of materials (CycloneDX): every package, version, license
+log "Writing the SBOM (CycloneDX)"
+"${BR_MAKE[@]}" -s show-info \
+    | python3 "${BUILDROOT}/utils/generate-cyclonedx" \
+        --project-name "rgos-${BOARD}" --project-version "$(date +%Y%m%d-%H%M)" \
+        -o "${ARTIFACTS}/rgos-${BOARD}.sbom.cdx.json" \
+    || log_err "SBOM generation failed (image is fine)"
 
 log "${BOARD} build complete"

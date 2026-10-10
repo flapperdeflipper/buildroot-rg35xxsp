@@ -1,0 +1,8 @@
+config BR2_PACKAGE_GLOW
+	bool "glow"
+	depends on BR2_PACKAGE_HOST_GO_TARGET_ARCH_SUPPORTS
+	select BR2_PACKAGE_HOST_GO
+	help
+	  Render Markdown in the terminal.
+
+	  https://github.com/charmbracelet/glow

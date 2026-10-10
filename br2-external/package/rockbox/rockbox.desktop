@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Rockbox
+Comment=Music player (FLAC, MP3, Opus, ...) made for buttons
+Exec=rgos-rockbox
+Icon=multimedia-player
+Categories=AudioVideo;Audio;Player;
+Terminal=false

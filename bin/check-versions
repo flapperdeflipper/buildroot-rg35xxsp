@@ -1,0 +1,211 @@
+#!/usr/bin/env python3
+"""Audit pinned versions against upstream: Buildroot, the ROCKNIX commit and
+every third-party package in br2-external/package/.
+
+    bin/check-versions              table: pinned, latest, status
+    bin/check-versions --update     bump tag-pinned packages: rewrite the
+                                    version in <pkg>.mk and the tarball hash
+                                    in <pkg>.hash (downloads the tarball)
+
+Needs the GitHub CLI (`gh`, logged in) for the GitHub API. Commit pins
+(Rockbox, ROCKNIX) and Buildroot are reported, never rewritten: bump them
+by hand and rebuild. Vendored Go/Rust packages get a new version but their
+hash comes from the first build (~/downloads/<pkg>/ on the build VM).
+After --update: bin/buildbox.sh make <board> <pkg>-dirclean, rebuild, test.
+"""
+
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.request
+
+BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+PKG_DIR = os.path.join(BASE, "br2-external", "package")
+# Host download cache (bin/buildbox.sh pushes it to the build VM)
+DL_CACHE = os.environ.get("RGOS_DL_CACHE") or os.path.expanduser("~/.cache/rgos/dl")
+
+# Upstream for packages whose SITE isn't a GitHub URL / macro
+UPSTREAM = {
+    "fuzzel": ("codeberg", "dnkl/fuzzel"),
+    "weechat": ("github", "weechat/weechat"),
+    "mousepad": ("xfce", "apps/mousepad"),
+    "wlopm": ("manual", "https://git.sr.ht/~leon_plickat/wlopm/refs"),
+    "gtksourceview4": ("manual", "4.x is the final GTK3 series"),
+}
+SKIP = re.compile(r"^rgos-")  # our own packages and helpers pinned with the kernel patches
+
+
+def run(*cmd):
+    return subprocess.run(cmd, capture_output=True, text=True, check=False).stdout.strip()
+
+
+def gh(path):
+    out = run("gh", "api", path)
+    try:
+        return json.loads(out)
+    except ValueError:
+        return None
+
+
+def http_json(url):
+    try:
+        with urllib.request.urlopen(url, timeout=20) as r:
+            return json.load(r)
+    except Exception:  # noqa: BLE001 - report as unknown
+        return None
+
+
+def github_latest(repo):
+    rel = gh(f"repos/{repo}/releases/latest")
+    if isinstance(rel, dict) and rel.get("tag_name"):
+        return rel["tag_name"]
+    tags = gh(f"repos/{repo}/tags")
+    return tags[0]["name"] if isinstance(tags, list) and tags else None
+
+
+def latest(name, site):
+    kind, ref = UPSTREAM.get(name, (None, None))
+    if kind is None:
+        m = re.search(r"call github,([^,]+),([^,)]+)", site) or \
+            re.search(r"github\.com/([^/]+)/([^/]+)/releases", site)
+        if not m:
+            return None, "unknown upstream"
+        kind, ref = "github", f"{m.group(1)}/{m.group(2)}"
+    if kind == "github":
+        return github_latest(ref), None
+    if kind == "codeberg":
+        rel = http_json(f"https://codeberg.org/api/v1/repos/{ref}/releases/latest")
+        return (rel or {}).get("tag_name"), None
+    if kind == "xfce":
+        tags = http_json(f"https://gitlab.xfce.org/api/v4/projects/{ref.replace('/', '%2F')}/repository/tags")
+        return (tags[0]["name"] if tags else None), None
+    return None, ref  # manual
+
+
+def norm(v):
+    """'v1.2.0' / 'mousepad-0.6.5' / '2.1.0' -> comparable tuple"""
+    v = re.sub(r"^[A-Za-z_-]*?(?=\d)", "", v or "")
+    parts = re.findall(r"\d+|[a-z]+", v.lower())
+    while len(parts) > 1 and parts[-1] == "0":
+        parts.pop()  # 2.1.0 == 2.1
+    return tuple(int(p) if p.isdigit() else p for p in parts)
+
+
+def mk_vars(text):
+    return dict(re.findall(r"^([A-Z0-9_]+)\s*=\s*(.*)$", text, re.M))
+
+
+def expand(value, var):
+    for _ in range(5):
+        value = re.sub(r"\$\(([A-Z0-9_]+)\)", lambda m: var.get(m.group(1), m.group(0)), value)
+    return value
+
+
+def update(name, mk_path, var, prefix, new_tag):
+    text = open(mk_path).read()
+    old = var[f"{prefix}_VERSION"]
+    new = re.sub(r"^v", "", new_tag) if not old.startswith("v") else new_tag
+    if f"{prefix}_VERSION_MAJOR" in var:
+        print(f"  {name}: VERSION_MAJOR split, bump by hand")
+        return
+    text = re.sub(rf"^({prefix}_VERSION\s*=\s*).*$", rf"\g<1>{new}", text, flags=re.M)
+    open(mk_path, "w").write(text)
+    var = mk_vars(text)
+    vendored = "golang-package" in text or "cargo-package" in text
+    hash_path = os.path.join(os.path.dirname(mk_path), f"{name}.hash")
+    if vendored or not os.path.exists(hash_path):
+        print(f"  {name}: {old} -> {new}; hash: from the first build (vendored)" if vendored
+              else f"  {name}: {old} -> {new}; no hash file")
+        return
+    site = expand(var.get(f"{prefix}_SITE", ""), var)
+    m = re.search(r"call github,([^,]+),([^,]+),([^)]+)\)", site)
+    if m:
+        url = f"https://github.com/{m.group(1)}/{m.group(2)}/archive/{m.group(3)}.tar.gz"
+        source = f"{name}-{var[prefix + '_VERSION']}.tar.gz"
+    else:
+        source = expand(var.get(f"{prefix}_SOURCE", f"{name}-$({prefix}_VERSION).tar.gz"), var)
+        url = f"{site}/{source}"
+    try:
+        with urllib.request.urlopen(url, timeout=120) as r:
+            data = r.read()
+        digest = hashlib.sha256(data).hexdigest()
+        # Keep it for the build (bin/buildbox.sh sync pushes the cache)
+        os.makedirs(os.path.join(DL_CACHE, name), exist_ok=True)
+        with open(os.path.join(DL_CACHE, name, source), "wb") as f:
+            f.write(data)
+    except Exception as err:  # noqa: BLE001
+        print(f"  {name}: {old} -> {new}; download failed ({err}), fix the hash by hand")
+        return
+    lines = open(hash_path).read().splitlines()
+    out, done = [], False
+    for line in lines:
+        f = line.split()
+        if len(f) == 3 and f[0] == "sha256" and f[2] != "LICENSE" and not f[2].startswith(("LICENSE", "COPYING", "docs/")):
+            if not done:
+                out.append(f"sha256  {digest}  {source}")
+                done = True
+            continue
+        out.append(line)
+    open(hash_path, "w").write("\n".join(out) + "\n")
+    print(f"  {name}: {old} -> {new}; hash updated (check the license hash on the build)")
+
+
+def main():
+    do_update = "--update" in sys.argv[1:]
+    if any(a in ("-h", "--help") for a in sys.argv[1:]):
+        sys.exit(__doc__)
+    if not run("gh", "--version"):
+        sys.exit("check-versions: needs the GitHub CLI (gh)")
+
+    rows, bumps = [], []
+    # Buildroot
+    pinned = re.search(r'BUILDROOT_VERSION="([^"]+)"', open(os.path.join(BASE, "bin/lib/versions.sh")).read()).group(1)
+    tags = run("git", "ls-remote", "--tags", "--refs", "https://gitlab.com/buildroot.org/buildroot.git")
+    rels = sorted({t.split("refs/tags/")[1] for t in tags.splitlines()
+                   if re.search(r"refs/tags/\d{4}\.\d{2}(\.\d+)?$", t)}, key=norm)
+    rows.append(("buildroot", pinned, rels[-1] if rels else "?", "manual"))
+    # ROCKNIX commit
+    ext = open(os.path.join(BASE, "br2-external/external.mk")).read()
+    commit = re.search(r"RGOS_ROCKNIX_COMMIT\s*=\s*(\w+)", ext).group(1)
+    head = (gh("repos/ROCKNIX/distribution/commits/HEAD") or {}).get("sha", "?")
+    rows.append(("rocknix (commit)", commit[:12], head[:12], "same" if head == commit else "manual"))
+
+    for name in sorted(os.listdir(PKG_DIR)):
+        mk_path = os.path.join(PKG_DIR, name, f"{name}.mk")
+        if SKIP.match(name) or not os.path.exists(mk_path):
+            continue
+        text = open(mk_path).read()
+        var = mk_vars(text)
+        prefix = name.upper().replace("-", "_")
+        pinned = expand(var.get(f"{prefix}_VERSION", "?"), var)
+        site = var.get(f"{prefix}_SITE", "")
+        if re.fullmatch(r"[0-9a-f]{40}", pinned):
+            m = re.search(r"call github,([^,]+),([^,)]+)", site)
+            head = (gh(f"repos/{m.group(1)}/{m.group(2)}/commits/HEAD") or {}).get("sha", "?") if m else "?"
+            rows.append((name + " (commit)", pinned[:12], head[:12], "same" if head == pinned else "manual"))
+            continue
+        tag, note = latest(name, expand(site, var))
+        if not tag:
+            rows.append((name, pinned, "?", note or "unknown"))
+            continue
+        newer = norm(tag) > norm(pinned)
+        rows.append((name, pinned, tag, "UPDATE" if newer else "ok"))
+        if newer:
+            bumps.append((name, mk_path, var, prefix, tag))
+
+    w = max(len(r[0]) for r in rows)
+    print(f"{'package':<{w}}  {'pinned':<16}  {'latest':<16}  status")
+    for r in rows:
+        print(f"{r[0]:<{w}}  {r[1]:<16}  {r[2]:<16}  {r[3]}")
+    if do_update and bumps:
+        print("\nUpdating:")
+        for b in bumps:
+            update(*b)
+        print("\nNext: bin/buildbox.sh make <board> <pkg>-dirclean, build, bin/test-qemu")
+
+
+if __name__ == "__main__":
+    main()

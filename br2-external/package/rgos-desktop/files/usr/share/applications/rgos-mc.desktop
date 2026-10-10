@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Midnight Commander
+Comment=Two-pane file manager in the terminal
+Exec=mc
+Icon=system-file-manager
+Categories=System;FileManager;
+Terminal=true

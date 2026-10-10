@@ -1,0 +1,13 @@
+config BR2_PACKAGE_RGOS_SDCARD
+	bool "rgos-sdcard"
+	depends on BR2_INIT_SYSTEMD
+	select BR2_PACKAGE_EXFATPROGS
+	select BR2_PACKAGE_DOSFSTOOLS
+	select BR2_PACKAGE_DOSFSTOOLS_FSCK_FAT
+	select BR2_PACKAGE_E2FSPROGS
+	select BR2_PACKAGE_UTIL_LINUX
+	select BR2_PACKAGE_UTIL_LINUX_BINARIES # lsblk, findmnt, sfdisk
+	select BR2_PACKAGE_SUDO
+	help
+	  Second SD card: check and mount on insert (exFAT, FAT32, ext4) at
+	  /media/sdcard, eject, and format to exFAT from the desktop.

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Web Browser (NetSurf)
+Comment=Fast, light web browser (limited JavaScript)
+Exec=netsurf-gtk3 %u
+Icon=web-browser
+Categories=Network;WebBrowser;
+MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;
+Terminal=false

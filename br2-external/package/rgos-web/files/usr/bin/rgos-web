@@ -1,0 +1,4 @@
+#!/bin/sh
+# Full-web browser: WebKitGTK's MiniBrowser (address bar, back/forward,
+# tabs). Start page: $RGOS_WEB_HOME or DuckDuckGo Lite (light on 1 GB RAM).
+exec MiniBrowser "${@:-${RGOS_WEB_HOME:-https://lite.duckduckgo.com/lite/}}"

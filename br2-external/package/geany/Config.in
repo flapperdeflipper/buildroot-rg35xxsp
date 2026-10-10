@@ -1,0 +1,10 @@
+config BR2_PACKAGE_GEANY
+	bool "geany"
+	depends on BR2_PACKAGE_LIBGTK3
+	depends on BR2_INSTALL_LIBSTDCPP
+	depends on BR2_USE_WCHAR
+	help
+	  Small and fast GTK3 IDE / code editor: syntax highlighting,
+	  symbol lists, build commands, plugins.
+
+	  https://www.geany.org/

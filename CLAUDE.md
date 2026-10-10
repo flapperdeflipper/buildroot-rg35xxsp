@@ -4,6 +4,13 @@ Buildroot + systemd OS for the Anbernic RG35XX SP (Allwinner H700). Desktop:
 labwc + sfwbar, foot, Mousepad, PCManFM; rgos-padd maps the buttons.
 See README.md (usage) and docs/ (roadmap, hardware, boot flow).
 **Current status and next steps: docs/HANDOVER.md** (keep it updated).
+Planned work: docs/roadmap.md (power/perf candidates + verdicts: its ROCKNIX-survey section); the storage redesign (read-only
+root, data partition, clone/backup apps): docs/storage-plan.md.
+Design preference (user): systemd mechanisms over custom scripts; mounts and
+configuration over symlinks; stay mergeable with ~/.projects/offline-lab.
+**Several agents may work in this tree at once**: read and append to
+`tmp/agents/channel.md` (protocol at its top) before builds, QEMU runs
+(one VM at a time) and edits in shared files.
 
 ## Builds
 
@@ -21,7 +28,8 @@ See README.md (usage) and docs/ (roadmap, hardware, boot flow).
 ## Testing
 
 - QEMU first: `bin/buildbox.sh build qemu-arm64 && bin/test-qemu`. Read the
-  screenshots in tmp/qemu/test-*.png. New services, scripts or bindings get a
+  screenshots in tmp/qemu-N/test-*.png (each run gets its own instance N;
+  the path is printed). New services, scripts or bindings get a
   check in bin/test-qemu.
 - Device: `/boot/rgos-boot.log` (FAT) after each boot; the full journal is
   persistent (copy /var/log/journal with debugfs, read with journalctl -D).
@@ -37,7 +45,7 @@ See README.md (usage) and docs/ (roadmap, hardware, boot flow).
 
 ## Gotchas
 
-- Local-source packages (rgos-padd/oskd/padsim/desktop) are auto-dircleaned by
+- Local-source packages (rgos-padd/oskd/padsim/desktop/power/youtube/sdcard) are auto-dircleaned by
   build-image.sh when their sources change (hash stamp per output dir); a
   manual `make <board> <pkg>-dirclean` is only needed after touching a build
   dir directly.

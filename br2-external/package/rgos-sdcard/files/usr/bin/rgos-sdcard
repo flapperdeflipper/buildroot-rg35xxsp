@@ -1,0 +1,101 @@
+#!/bin/bash
+# Second SD card, for the desktop user:
+#   rgos-sdcard menu      Open / Eject / Mount / Format, depending on the card
+#   rgos-sdcard open      file manager on /media/sdcard
+#   rgos-sdcard eject     unmount, so the card can be pulled safely
+#   rgos-sdcard format    erase -> one exFAT partition "RGOS-DATA" (asks twice)
+#   rgos-sdcard status    the state line (mounted|unusable|ejected|... dev fs label)
+#   rgos-sdcard session   desktop start: ~/SD link + file manager bookmark
+set -u
+
+MNT=/media/sdcard
+STATE=/run/rgos/sdcard
+
+read -r state dev fstype label <"${STATE}" 2>/dev/null || state=none
+
+pick() {    # prompt, entries... -> chosen entry
+    local prompt="$1"
+    shift
+    printf '%s\n' "$@" | fuzzel --dmenu --prompt "${prompt}" --lines "$#"
+}
+
+note() { printf '%s\n' "$1" | fuzzel --dmenu --prompt "SD card: " --lines 1 >/dev/null; }
+
+# The card in the second slot: every mmc disk except the one holding /
+card_disk() {
+    local root
+    root="$(lsblk -ndo PKNAME "$(findmnt -no SOURCE /)")"
+    lsblk -dno NAME | grep '^mmcblk[0-9]*$' | grep -vx "${root}" | head -n1
+}
+
+eject() {
+    [[ "${state}" == mounted ]] || { note "No SD card mounted"; return 1; }
+    sudo -n systemctl stop "rgos-sdcard@${dev}.service"
+}
+
+mount_again() {
+    [[ -n "${dev:-}" ]] || return 1
+    sudo -n systemctl restart "rgos-sdcard@${dev}.service"
+}
+
+format() {
+    local disk size
+    disk="$(card_disk)"
+    [[ -n "${disk}" ]] || { note "No SD card in the second slot"; return 1; }
+    size="$(lsblk -dno SIZE "/dev/${disk}" | tr -d ' ')"
+    [[ "$(pick "Erase the ${size} SD card${label:+ "${label}"}? " "No" "Yes, erase everything on it")" == Yes* ]] || return 0
+    [[ "$(pick "Really? All files on it are lost: " "No, keep it" "Erase now")" == "Erase now" ]] || return 0
+    printf '%s\n' "Formatting the SD card..." | fuzzel --dmenu --prompt "SD card: " --lines 1 >/dev/null &
+    local wait_pid=$!
+    sudo -n /usr/libexec/rgos/sdcard format "${disk}" 2>&1 | systemd-cat -t rgos-sdcard
+    if [[ ${PIPESTATUS[0]} -eq 0 ]]; then
+        kill "${wait_pid}" 2>/dev/null
+        note "Done: exFAT, Music / Videos / Pictures / Documents / Downloads"
+    else
+        kill "${wait_pid}" 2>/dev/null
+        note "Formatting failed (see: journalctl -t rgos-sdcard)"
+    fi
+}
+
+session() {
+    local bm="${HOME}/.config/gtk-3.0/bookmarks"
+    [[ -e "${HOME}/SD" || -L "${HOME}/SD" ]] || ln -s "${MNT}" "${HOME}/SD"
+    mkdir -p "$(dirname "${bm}")"
+    grep -qs "file://${MNT} " "${bm}" || echo "file://${MNT} SD card" >>"${bm}"
+}
+
+menu() {
+    local choice
+    case "${state}" in
+        mounted)
+            choice="$(pick "SD card${label:+ ${label}} (${fstype}): " "Open" "Eject" "Format (erase)")" ;;
+        ejected)
+            choice="$(pick "SD card (ejected): " "Mount again" "Format (erase)")" ;;
+        unusable|error)
+            choice="$(pick "SD card not usable (${fstype}): " "Format (erase)")" ;;
+        system)
+            note "That's an RGOS system card; not mounted"; return ;;
+        *)
+            if [[ -n "$(card_disk)" ]]; then
+                choice="$(pick "SD card: " "Format (erase)")"
+            else
+                note "No SD card in the second slot"; return
+            fi ;;
+    esac
+    case "${choice}" in
+        Open)             pcmanfm "${MNT}" & ;;
+        Eject)            eject ;;
+        "Mount again")    mount_again ;;
+        "Format (erase)") format ;;
+    esac
+}
+
+case "${1:-menu}" in
+    menu)    menu ;;
+    open)    pcmanfm "${MNT}" & ;;
+    eject)   eject ;;
+    format)  format ;;
+    status)  echo "${state} ${dev:-} ${fstype:-} ${label:-}" ;;
+    session) session ;;
+    *)       sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

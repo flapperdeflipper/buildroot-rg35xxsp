@@ -27,6 +27,9 @@
   <item label="Bluetooth on/off">
     <action name="Execute" command="rgos-power bluetooth toggle" />
   </item>
+  <item label="SD card">
+    <action name="Execute" command="rgos-sdcard menu" />
+  </item>
   <item label="On-screen keyboard">
     <action name="Execute" command="rgos-osk toggle" />
   </item>

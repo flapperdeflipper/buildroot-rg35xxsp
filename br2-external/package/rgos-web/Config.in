@@ -1,0 +1,9 @@
+config BR2_PACKAGE_RGOS_WEB
+	bool "rgos-web"
+	depends on BR2_PACKAGE_WEBKITGTK
+	select BR2_PACKAGE_WEBKITGTK_MINIBROWSER
+	select BR2_PACKAGE_WEBKITGTK_HTTPS
+	help
+	  "Web Browser (WebKit)": the full-web browser, WebKitGTK (Safari's
+	  engine) in its MiniBrowser shell, started by rgos-web. NetSurf
+	  stays the light one.

@@ -3,9 +3,29 @@
 
 # Boot / misc
 CONFIG_LOCALVERSION="-rgos"
+# 300 Hz (vs the 250 Hz default): slightly better interactive latency at a
+# small idle-wakeup cost.
+# CONFIG_HZ_250 is not set
+CONFIG_HZ_300=y
+CONFIG_HZ=300
+# Boot fast on the performance governor; labwc autostart applies the
+# configured power profile (schedutil) when the session starts.
+# CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL is not set
+CONFIG_CPU_FREQ_DEFAULT_GOV_PERFORMANCE=y
+# MGLRU: better page reclaim under memory pressure on 1 GB (LRU_GEN is
+# built by default but inactive without _ENABLED).
+CONFIG_LRU_GEN=y
+CONFIG_LRU_GEN_ENABLED=y
+# Allocator hardening off for a little boot/allocation speed.
+# CONFIG_SLAB_FREELIST_RANDOM is not set
+# CONFIG_SHUFFLE_PAGE_ALLOCATOR is not set
+# zram: fast primary (lzo-rle, cheap on the A53) with zstd recompression of
+# idle huge pages (ZRAM_MULTI_COMP); the zstd backend also stays available.
 CONFIG_ZRAM=m
+CONFIG_ZRAM_BACKEND_LZO=y
 CONFIG_ZRAM_BACKEND_ZSTD=y
-CONFIG_ZRAM_DEF_COMP_ZSTD=y
+CONFIG_ZRAM_DEF_COMP_LZORLE=y
+CONFIG_ZRAM_MULTI_COMP=y
 CONFIG_CRYPTO_ZSTD=y
 CONFIG_PSI=y
 

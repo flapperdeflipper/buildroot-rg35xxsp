@@ -1,0 +1,12 @@
+[Unit]
+Description=Second SD card %I (/media/sdcard)
+BindsTo=dev-%i.device
+After=dev-%i.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/rgos/sdcard add %I
+ExecStop=/usr/libexec/rgos/sdcard remove %I
+# fsck of a large, dirty card can take a while
+TimeoutStartSec=10min

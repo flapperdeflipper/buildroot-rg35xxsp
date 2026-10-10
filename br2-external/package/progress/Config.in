@@ -1,0 +1,10 @@
+config BR2_PACKAGE_PROGRESS
+	bool "progress"
+	depends on BR2_USE_WCHAR
+	select BR2_PACKAGE_NCURSES
+	select BR2_PACKAGE_NCURSES_WCHAR
+	help
+	  Shows the progress of running cp, mv, dd, tar, gzip, ... (reads
+	  /proc for open files and their offsets).
+
+	  https://github.com/Xfennec/progress

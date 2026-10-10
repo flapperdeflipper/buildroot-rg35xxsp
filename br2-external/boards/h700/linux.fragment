@@ -99,15 +99,20 @@ CONFIG_MMC_SUNXI=y
 # CONFIG_RESET_GPIO is not set
 
 # Display: DE33 mixer + TCON (patched), RGB panel over SPI-init, PWM backlight.
-# The sun4i DRM pieces must be built in: the ROCKNIX patches call between
-# them without exporting symbols (as in ROCKNIX's own config). The panel
-# driver stays a module: it reads its init sequence from /lib/firmware.
+# The sun4i DRM pieces must be built in: the H700 patches call between them
+# without exporting symbols. The panel driver stays a module: it reads its
+# init sequence from /lib/firmware.
 CONFIG_DRM_SUN4I=y
 CONFIG_DRM_SUN8I_MIXER=y
 CONFIG_DRM_SUN8I_TCON_TOP=y
 CONFIG_DRM_SUN8I_DW_HDMI=y
 CONFIG_DRM_PANEL_MIPI=m
 CONFIG_DRM_PANFROST=m
+# Explicit devfreq governors for the GPU (Panfrost): simple_ondemand is the
+# default; performance lets a future profile use a governor instead of
+# pinning min_freq = max_freq.
+CONFIG_DEVFREQ_GOV_SIMPLE_ONDEMAND=y
+CONFIG_DEVFREQ_GOV_PERFORMANCE=y
 CONFIG_PWM=y
 CONFIG_PWM_SUN8I=y
 CONFIG_BACKLIGHT_CLASS_DEVICE=y

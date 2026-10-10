@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Screenshot the display of a running bin/run-qemu VM (via QMP).
 
-    bin/qemu-screenshot [file.png]      default: tmp/qemu/screenshot.png
+    bin/qemu-screenshot [file.png]      default: <instance dir>/screenshot.png
+
+RGOS_QEMU_INSTANCE=N selects the VM (default 0, tmp/qemu).
 """
 
 import json
@@ -10,7 +12,10 @@ import socket
 import sys
 
 BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-SOCK = os.path.join(BASE, "tmp", "qemu", "qmp.sock")
+# QEMU instance (bin/lib/qemu.sh): RGOS_QEMU_INSTANCE=N -> tmp/qemu-N
+_INSTANCE = int(os.environ.get("RGOS_QEMU_INSTANCE") or 0)
+STATE = os.path.join(BASE, "tmp", "qemu" if _INSTANCE == 0 else f"qemu-{_INSTANCE}")
+SOCK = os.path.join(STATE, "qmp.sock")
 
 
 def qmp(sock_file, command, **arguments):
@@ -31,7 +36,7 @@ def qmp(sock_file, command, **arguments):
 def main():
     if len(sys.argv) > 1 and sys.argv[1] in ("-h", "--help"):
         sys.exit(__doc__)
-    out = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(BASE, "tmp", "qemu", "screenshot.png"))
+    out = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(STATE, "screenshot.png"))
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
         s.connect(SOCK)

@@ -8,12 +8,13 @@
 # Usage:
 #   bin/buildbox.sh create             # create + provision the VM
 #   bin/buildbox.sh start|stop         # start / stop the VM
-#   bin/buildbox.sh sync               # rsync br2-external + bin/ to the VM
+#   bin/buildbox.sh sync [board]       # rsync the tree to the VM (~/work/<board>)
 #   bin/buildbox.sh check [board]      # sync + configure + verify the defconfig
 #   bin/buildbox.sh build [board]      # sync + full image build (default: rg35xxsp)
 #   bin/buildbox.sh follow [board]     # re-attach to a running build's log
 #   bin/buildbox.sh make [board] <tgt> # sync + run a buildroot make target, e.g. linux-rebuild
 #   bin/buildbox.sh fetch [board]      # copy images to artifacts/<board>/
+#   bin/buildbox.sh cache pull|push    # source download cache on the Mac <-> VM
 #   bin/buildbox.sh ssh [cmd]          # shell (or command) on the VM
 #   bin/buildbox.sh destroy            # delete the VM
 #
@@ -45,12 +46,22 @@ unset _host_cpus _host_mem_gib _default_cpus _default_mem_gib
 
 REMOTE_USER="builder"
 REMOTE_HOME="/home/${REMOTE_USER}"
-REMOTE_WORK="${REMOTE_HOME}/work"
+# One working copy per board: syncing for one board never changes the files
+# under another board's running build
+remote_work() { echo "${REMOTE_HOME}/work/${1:-${DEFAULT_BOARD}}"; }
 
 SSH_OPTS=(-F /dev/null -i "${SSH_KEY}" -o IdentityAgent=none -o IdentitiesOnly=yes
           -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="${BASEDIR}/.ssh/known_hosts"
           -o ConnectTimeout=10 -o BatchMode=yes -o ServerAliveInterval=30)
 REMOTE_HOST="127.0.0.1"
+
+# Source tarballs cached on the Mac (Buildroot's download-dir layout), so a
+# new VM doesn't fetch gigabytes again and nothing is downloaded twice:
+# builds pull new files into it, sync/create push missing ones to the VM.
+DL_CACHE="${RGOS_DL_CACHE:-${HOME}/.cache/rgos/dl}"
+# Not worth caching: cargo's registry cache and git clones (rebuilt from the
+# vendored / tarball downloads)
+DL_EXCLUDES=(--exclude br-cargo-home/ --exclude '*/git/' --exclude '.*')
 SSH_PORT=""
 
 ################################################################################
@@ -91,6 +102,20 @@ function wait_for_ssh() {
 ################################################################################
 # Commands
 ################################################################################
+
+# cache pull: VM -> Mac (new files only); cache push: Mac -> VM (missing only)
+function cmd_cache() {
+    resolve_host
+    mkdir -p "${DL_CACHE}"
+    case "${1:-pull}" in
+        pull) bb_rsync --ignore-existing "${DL_EXCLUDES[@]}" \
+                  "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_HOME}/downloads/" "${DL_CACHE}/" ;;
+        push) bb_ssh "mkdir -p ~/downloads"
+              bb_rsync --ignore-existing "${DL_EXCLUDES[@]}" \
+                  "${DL_CACHE}/" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_HOME}/downloads/" ;;
+        *)    log_err "usage: ${0} cache pull|push"; exit 2 ;;
+    esac
+}
 
 function cmd_create() {
     require_tools limactl jq rsync
@@ -162,6 +187,7 @@ YAML
     bb_ssh "test -f ~/buildroot/Makefile || git clone --branch ${BUILDROOT_VERSION} ${BUILDROOT_GIT} ~/buildroot"
     bb_ssh "mkdir -p ~/work ~/downloads ~/artifacts ~/.ccache && ccache --max-size=20G >/dev/null"
 
+    [[ -d "${DL_CACHE}" ]] && { log "Seeding downloads from ${DL_CACHE}"; cmd_cache push; }
     log "Buildbox ready. Connect with: ${0} ssh"
 }
 
@@ -177,8 +203,23 @@ function cmd_destroy() {
     limactl delete --force "${VM_NAME}"
 }
 
+# Is a job (build/make/check/prune) running for this board? (lock on the VM)
+function board_busy() {
+    bb_ssh "mkdir -p ~/.locks && ! flock -n ~/.locks/board-${1} true"
+}
+
 function cmd_sync() {
+    local board="${1:-${DEFAULT_BOARD}}" REMOTE_WORK
+    REMOTE_WORK="$(remote_work "${board}")"
     resolve_host
+    if board_busy "${board}"; then
+        log_err "${board} is busy on ${VM_NAME} (a build/make/check runs); not syncing under it."
+        log_err "Follow it: ${0} follow ${board}"
+        exit 1
+    fi
+    # Tarballs fetched on the Mac (bin/check-versions --update) or by a
+    # previous VM: give them to this one before it downloads them again
+    [[ -d "${DL_CACHE}" ]] && cmd_cache push
     log "Syncing to ${VM_NAME}:${REMOTE_WORK}"
     bb_ssh "mkdir -p ${REMOTE_WORK}"
     bb_rsync --delete --exclude '.git' "${BASEDIR}/br2-external/" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_WORK}/br2-external/"
@@ -198,12 +239,8 @@ function cmd_sync() {
 # session drops, re-attach with: bin/buildbox.sh follow [board]
 function cmd_build() {
     local board="${1:-${DEFAULT_BOARD}}"
-    cmd_sync
-    if [[ "$(bb_ssh "cat ~/build-${board}.status 2>/dev/null")" == "running" ]]; then
-        log_err "A ${board} build is already running; attach with: ${0} follow ${board}"
-        exit 1
-    fi
-    bb_ssh "echo running > ~/build-${board}.status; : > ~/build-${board}.log; nohup setsid bash ${REMOTE_WORK}/bin/build-image.sh ${board} >/dev/null 2>&1 </dev/null &"
+    cmd_sync "${board}"
+    bb_ssh "echo running > ~/build-${board}.status; : > ~/build-${board}.log; nohup setsid bash $(remote_work "${board}")/bin/build-image.sh ${board} >/dev/null 2>&1 </dev/null &"
     log "Building ${board} on ${VM_NAME} (log: ~/build-${board}.log on the VM)"
     cmd_follow "${board}"
 }
@@ -212,8 +249,11 @@ function cmd_follow() {
     local board="${1:-${DEFAULT_BOARD}}" status start
     resolve_host
     start="$(date +%s)"
-    bb_ssh "tail -n +1 -F ~/build-${board}.log 2>/dev/null & t=\$!; while [ \"\$(cat ~/build-${board}.status)\" = running ]; do sleep 5; done; sleep 1; kill \$t"
+    # Follow while the board's lock is held (the build takes it within a
+    # second of starting); a build that died leaves no lock behind
+    bb_ssh "sleep 3; tail -n +1 -F ~/build-${board}.log 2>/dev/null & t=\$!; while ! flock -n ~/.locks/board-${board} true; do sleep 5; done; sleep 1; kill \$t"
     status="$(bb_ssh "cat ~/build-${board}.status")"
+    [[ "${status}" == running ]] && status="died (no exit status)"
     if [[ "${status}" != "0" ]]; then
         log_err "${board} build failed (exit ${status})"
         exit 1
@@ -224,8 +264,8 @@ function cmd_follow() {
 
 function cmd_check() {
     local board="${1:-${DEFAULT_BOARD}}"
-    cmd_sync
-    bb_ssh "bash ${REMOTE_WORK}/bin/build-image.sh --check ${board}"
+    cmd_sync "${board}"
+    bb_ssh "bash $(remote_work "${board}")/bin/build-image.sh --check ${board}"
 }
 
 function cmd_make() {
@@ -234,17 +274,33 @@ function cmd_make() {
         board="${1}"
         shift
     fi
-    cmd_sync
-    bb_ssh "bash ${REMOTE_WORK}/bin/build-image.sh --make ${board} ${*}"
+    cmd_sync "${board}"
+    bb_ssh "bash $(remote_work "${board}")/bin/build-image.sh --make ${board} ${*}"
 }
 
 function cmd_fetch() {
     local board="${1:-${DEFAULT_BOARD}}"
     resolve_host
-    mkdir -p "${BASEDIR}/artifacts/${board}"
+    local dir="${BASEDIR}/artifacts/${board}" img stamp i
+    mkdir -p "${dir}"
+    # Keep the previous images (rollback, diffing): history/<time>/, last 3
+    img="$(ls "${dir}"/*.img.gz 2>/dev/null | head -n1)"
+    if [[ -n "${img}" ]]; then
+        stamp="$(date -r "${img}" +%Y%m%d-%H%M)"
+        if [[ ! -d "${dir}/history/${stamp}" ]]; then
+            mkdir -p "${dir}/history/${stamp}"
+            find "${dir}" -maxdepth 1 -type f -exec cp -p {} "${dir}/history/${stamp}/" \;
+        fi
+        local hist=("${dir}"/history/*/)   # sorted by name = by time
+        for (( i = 0; i < ${#hist[@]} - 3; i++ )); do
+            rm -rf "${hist[i]}"
+        done
+    fi
     log "Fetching artifacts to artifacts/${board}/"
-    bb_rsync --delete "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_HOME}/artifacts/${board}/" "${BASEDIR}/artifacts/${board}/"
-    ls -lh "${BASEDIR}/artifacts/${board}/"
+    bb_rsync --delete --exclude history/ "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_HOME}/artifacts/${board}/" "${dir}/"
+    ls -lh "${dir}/"
+    log_dim "caching new source downloads in ${DL_CACHE}"
+    cmd_cache pull || true
 }
 
 function cmd_ssh() {
@@ -264,6 +320,6 @@ cmd="${1:-build}"
 [[ "${#}" -gt 0 ]] && shift
 
 case "${cmd}" in
-    create|start|stop|destroy|sync|check|build|follow|make|fetch|ssh) "cmd_${cmd}" "${@}" ;;
-    *) sed -n '3,19p' "${0}"; exit 1 ;;
+    create|start|stop|destroy|sync|check|build|follow|make|fetch|cache|ssh) "cmd_${cmd}" "${@}" ;;
+    *) sed -n '3,20p' "${0}"; exit 1 ;;
 esac

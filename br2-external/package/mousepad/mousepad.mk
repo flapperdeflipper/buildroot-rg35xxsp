@@ -4,8 +4,8 @@
 #
 ################################################################################
 
-MOUSEPAD_VERSION_MAJOR = 0.6
-MOUSEPAD_VERSION = $(MOUSEPAD_VERSION_MAJOR).5
+MOUSEPAD_VERSION_MAJOR = 0.7
+MOUSEPAD_VERSION = $(MOUSEPAD_VERSION_MAJOR).0
 MOUSEPAD_SOURCE = mousepad-$(MOUSEPAD_VERSION).tar.xz
 MOUSEPAD_SITE = https://archive.xfce.org/src/apps/mousepad/$(MOUSEPAD_VERSION_MAJOR)
 MOUSEPAD_LICENSE = GPL-2.0+

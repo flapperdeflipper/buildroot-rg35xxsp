@@ -1,0 +1,14 @@
+config BR2_PACKAGE_RGOS_SUSPEND_STUB
+	bool "rgos-suspend-stub"
+	depends on BR2_TARGET_UBOOT
+	depends on BR2_TARGET_UBOOT_BUILD_SYSTEM_KCONFIG
+	depends on BR2_TARGET_ARM_TRUSTED_FIRMWARE
+	help
+	  Build the H700 SRAM suspend stubs (kailashrs' work, as packaged by
+	  ROCKNIX) that let TF-A provide PSCI SYSTEM_SUSPEND: real deep sleep
+	  with DRAM in self-refresh and resume without losing the session.
+	  One stub per memory type (LPDDR3/LPDDR4), compiled from the same
+	  U-Boot DRAM driver and parameters as the bootloaders; TF-A embeds
+	  both and picks the match at boot (external.mk wires this up).
+
+	  Requires the u-boot and arm-trusted-firmware packages to be enabled.

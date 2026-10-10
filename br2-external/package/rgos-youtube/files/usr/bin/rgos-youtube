@@ -1,0 +1,67 @@
+#!/bin/bash
+# RGOS YouTube: search -> pick from a list -> play full screen in mpv
+# (yt-dlp, max 480p by default). After a video the list comes back; Esc in
+# the list goes back to the search, Esc in the search quits.
+#
+# Settings (optional) in ~/.config/rgos/youtube.conf:
+#   max_height=480     video height cap (240, 360, 480, 720)
+#   results=20         number of search results
+set -u
+
+conf() {
+    local v
+    v="$(sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "${HOME}/.config/rgos/youtube.conf" 2>/dev/null | tail -n1)"
+    echo "${v:-$2}"
+}
+max_height="$(conf max_height 480)"
+results="$(conf results 20)"
+# H.264 first, then VP9: cheapest to decode on the A53 cores (and ffmpeg
+# here has no software AV1 decoder, dav1d); else anything within the cap.
+h="[height<=${max_height}]"
+format="bv*${h}[vcodec^=avc1]+ba/bv*${h}[vcodec^=vp9]+ba/b${h}/bv*${h}+ba/b"
+
+note() {
+    printf '%s\n' "$1" | fuzzel --dmenu --prompt "YouTube: " --lines 1 >/dev/null
+}
+
+search() {
+    local q
+    # The on-screen keyboard types into the search box (SELECT toggles it)
+    rgos-padctl osk on 2>/dev/null
+    q="$(fuzzel --dmenu --prompt-only "YouTube search: " </dev/null)"
+    rgos-padctl osk off 2>/dev/null
+    printf '%s' "${q}"
+}
+
+while :; do
+    query="$(search)"
+    [[ -n "${query// /}" ]] || exit 0
+
+    printf '%s\n' "Searching for \"${query}\"..." | fuzzel --dmenu --lines 1 --prompt "YouTube: " >/dev/null &
+    waitpid=$!
+    mapfile -t rows < <(yt-dlp --no-warnings --flat-playlist \
+        --print "%(id)s	%(title)s	%(channel)s	%(duration_string)s" \
+        "ytsearch${results}:${query}" 2>/dev/null)
+    kill "${waitpid}" 2>/dev/null
+
+    if [[ ${#rows[@]} -eq 0 ]]; then
+        note "Nothing found (or no network)"
+        continue
+    fi
+
+    labels=()
+    for r in "${rows[@]}"; do
+        IFS=$'\t' read -r _ title channel dur <<<"${r}"
+        labels+=("${title}  ·  ${channel:-?}  (${dur:-live})")
+    done
+
+    # Pick -> play -> back to the same list, until Esc
+    while idx="$(printf '%s\n' "${labels[@]}" | fuzzel --dmenu --index --prompt "${query}: " --lines 12 --width 60)"; do
+        [[ -n "${idx}" ]] || break
+        id="${rows[idx]%%	*}"
+        mpv --fs --force-window=immediate \
+            --input-conf=/usr/share/rgos/youtube-input.conf \
+            --ytdl-format="${format}" \
+            "https://www.youtube.com/watch?v=${id}" >/dev/null 2>&1
+    done
+done

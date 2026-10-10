@@ -1,0 +1,12 @@
+config BR2_PACKAGE_YT_DLP
+	bool "yt-dlp"
+	depends on BR2_PACKAGE_PYTHON3
+	select BR2_PACKAGE_PYTHON3_SSL
+	select BR2_PACKAGE_PYTHON3_ZLIB
+	select BR2_PACKAGE_PYTHON3_SQLITE
+	select BR2_PACKAGE_QUICKJS # YouTube needs a JavaScript runtime
+	help
+	  Video downloader (YouTube and many other sites). Installed as
+	  the upstream zipapp, with QuickJS as its JavaScript runtime.
+
+	  https://github.com/yt-dlp/yt-dlp

@@ -1,8 +1,14 @@
 #!/bin/bash
 # Volume control for the hardware volume keys.
 #   rgos-volume up|down|mute|get
-# Uses $RGOS_MIXER if set, otherwise the first simple control found below.
+# Prefers PipeWire (pactl, default sink) when a server is up; falls back to
+# ALSA (amixer). $RGOS_MIXER still names the ALSA control for the fallback.
 set -u
+
+pw_ok() { pactl get-sink-volume @DEFAULT_SINK@ >/dev/null 2>&1; }
+
+pw_level() { pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null | grep -o -m1 '[0-9]*%' | tr -d %; }
+pw_muted() { [[ "$(pactl get-sink-mute @DEFAULT_SINK@ 2>/dev/null)" == *yes* ]]; }
 
 control="${RGOS_MIXER:-}"
 if [[ -z "${control}" ]]; then
@@ -14,12 +20,43 @@ if [[ -z "${control}" ]]; then
         fi
     done
 fi
-[[ -n "${control}" ]] || exit 0
+
+alsa_ok() { [[ -n "${control}" ]]; }
+alsa_level() { amixer sget "${control}" | grep -o -m1 '\[[0-9]*%\]' | tr -d '[]%'; }
+alsa_muted() { amixer sget "${control}" | grep -q -m1 '\[off\]'; }
+
+level() { pw_ok && pw_level || { alsa_ok && alsa_level; }; }
+muted() { pw_ok && pw_muted || { alsa_ok && alsa_muted; }; }
+
+# On-screen feedback (one popup, updated in place)
+show() {
+    local v icon=audio-volume-high
+    v="$(level)"
+    if ! [[ "${v}" =~ ^[0-9]+$ ]]; then
+        rgos-notify -r volume -t 1500 "Volume: no sound device" "" audio-volume-muted
+        return
+    fi
+    if muted; then icon=audio-volume-muted
+    elif (( v < 34 )); then icon=audio-volume-low
+    elif (( v < 67 )); then icon=audio-volume-medium
+    fi
+    rgos-notify -r volume -t 1500 -v "${v}" "Volume $(muted && echo muted || echo "${v}%")" "" "${icon}"
+}
 
 case "${1:-get}" in
-    up)   amixer -q sset "${control}" 5%+ unmute ;;
-    down) amixer -q sset "${control}" 5%- ;;
-    mute) amixer -q sset "${control}" toggle ;;
-    get)  amixer sget "${control}" | grep -o -m1 '\[[0-9]*%\]' | tr -d '[]' ;;
+    up)   if pw_ok; then pactl set-sink-volume @DEFAULT_SINK@ +5%
+                 pactl set-sink-mute @DEFAULT_SINK@ 0
+          elif alsa_ok; then amixer -q sset "${control}" 5%+ unmute
+          fi
+          show ;;
+    down) if pw_ok; then pactl set-sink-volume @DEFAULT_SINK@ -5%
+          elif alsa_ok; then amixer -q sset "${control}" 5%-
+          fi
+          show ;;
+    mute) if pw_ok; then pactl set-sink-mute @DEFAULT_SINK@ toggle
+          elif alsa_ok; then amixer -q sset "${control}" toggle
+          fi
+          show ;;
+    get)  level ;;
     *)    echo "usage: rgos-volume up|down|mute|get" >&2; exit 2 ;;
 esac

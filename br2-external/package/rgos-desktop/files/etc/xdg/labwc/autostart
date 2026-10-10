@@ -7,9 +7,15 @@ swaybg --mode fill --image /usr/share/rgos/wallpaper.png >/dev/null 2>&1 &
 # Panel: start menu, window list, Wi-Fi, Bluetooth, volume, battery, clock
 sfwbar -f /etc/rgos/sfwbar.config >/dev/null &
 
+# Notifications (rgos-notify; SD card, ...), below the panel
+mako --config /etc/rgos/mako.conf >/dev/null 2>&1 &
+
+# Second SD card: ~/SD link + file manager bookmark (rgos-sdcard)
+rgos-sdcard session &
+
 # On-screen keyboard (hidden until SELECT / the panel's keyboard button /
 # rgos-oskd opens it for a text app)
-wvkbd-mobintl --hidden -L 180 --fn "DejaVu Sans 12" &
+rgos-osk start &
 
 # Phone-style OSK trigger: opens the keyboard when a text app is activated
 # and no USB/BT keyboard is attached (see /etc/rgos/oskd.conf)

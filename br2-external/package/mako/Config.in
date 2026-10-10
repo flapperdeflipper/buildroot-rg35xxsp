@@ -1,0 +1,13 @@
+config BR2_PACKAGE_MAKO
+	bool "mako"
+	depends on BR2_PACKAGE_WAYLAND
+	depends on BR2_PACKAGE_SYSTEMD # sd-bus
+	select BR2_PACKAGE_CAIRO
+	select BR2_PACKAGE_PANGO
+	select BR2_PACKAGE_LIBGLIB2
+	select BR2_PACKAGE_WAYLAND_PROTOCOLS
+	help
+	  Lightweight notification daemon for Wayland compositors
+	  (org.freedesktop.Notifications).
+
+	  https://github.com/emersion/mako

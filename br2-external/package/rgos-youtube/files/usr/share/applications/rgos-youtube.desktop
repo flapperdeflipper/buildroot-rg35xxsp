@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=YouTube
+Comment=Search and watch YouTube videos (yt-dlp + mpv)
+Exec=rgos-youtube
+Icon=video-x-generic
+Categories=AudioVideo;Video;
+Terminal=false

@@ -1,0 +1,139 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: RGOS <noreply@localhost>
+Date: Sat, 10 Oct 2026 21:40:00 +0200
+Subject: [PATCH] sdlapp: keyboard / gamepad controls
+
+The SDL application only maps the numeric keypad (and the arrows) onto
+the touchscreen's 3x3 grid, and its WPS has no play/skip/seek keys, so
+it can't be used without a touchscreen. Map the usual keys to the
+SDL_PAD buttons keymap-sdl.c already knows (arrows, Enter = OK, Esc =
+back, Backspace = menu, Space = play/pause, Tab / Shift+Tab and
+PageUp/PageDown = previous/next) and give the WPS play, skip, seek and
+volume on them. The numeric keypad keeps the touch grid.
+
+Upstream-Status: Inappropriate [RGOS gamepad mapping]
+---
+diff --git a/apps/keymaps/keymap-sdl.c b/apps/keymaps/keymap-sdl.c
+index 35636c0..a858ec9 100644
+--- a/apps/keymaps/keymap-sdl.c
++++ b/apps/keymaps/keymap-sdl.c
+@@ -48,6 +48,7 @@ static const struct button_mapping button_context_standard[]  = {
+     { ACTION_STD_NEXTREPEAT,  BUTTON_DOWN|BUTTON_REPEAT, BUTTON_NONE },
+ 
+     { ACTION_STD_OK,          BUTTON_CENTER|BUTTON_REL,  BUTTON_CENTER },
++    { ACTION_STD_OK,          BUTTON_SELECT|BUTTON_REL,  BUTTON_SELECT },
+     { ACTION_STD_OK,          BUTTON_RIGHT|BUTTON_REL,   BUTTON_RIGHT },
+     { ACTION_STD_CANCEL,      BUTTON_LEFT,                    BUTTON_NONE },
+     { ACTION_STD_CANCEL,      BUTTON_LEFT|BUTTON_REL,    BUTTON_LEFT },
+@@ -58,14 +59,27 @@ static const struct button_mapping button_context_standard[]  = {
+ }; /* button_context_standard */
+ 
+ static const struct button_mapping button_context_wps[]  = {
++    /* Pad / keyboard: OK or Space = play/pause, left/right = previous/next
++     * (hold = seek), up/down = volume, Tab / Shift+Tab = next/previous */
++    { ACTION_WPS_PLAY,          BUTTON_CENTER|BUTTON_REL,    BUTTON_CENTER },
++    { ACTION_WPS_PLAY,          BUTTON_SELECT|BUTTON_REL,    BUTTON_SELECT },
++    { ACTION_WPS_STOP,          BUTTON_SELECT|BUTTON_REPEAT, BUTTON_SELECT },
++    { ACTION_WPS_SKIPNEXT,      BUTTON_RIGHT|BUTTON_REL,     BUTTON_RIGHT },
++    { ACTION_WPS_SEEKFWD,       BUTTON_RIGHT|BUTTON_REPEAT,  BUTTON_NONE },
++    { ACTION_WPS_STOPSEEK,      BUTTON_RIGHT|BUTTON_REL,     BUTTON_RIGHT|BUTTON_REPEAT },
++    { ACTION_WPS_SKIPPREV,      BUTTON_LEFT|BUTTON_REL,      BUTTON_LEFT },
++    { ACTION_WPS_SEEKBACK,      BUTTON_LEFT|BUTTON_REPEAT,   BUTTON_NONE },
++    { ACTION_WPS_STOPSEEK,      BUTTON_LEFT|BUTTON_REL,      BUTTON_LEFT|BUTTON_REPEAT },
++    { ACTION_WPS_VOLUP,         BUTTON_UP,                   BUTTON_NONE },
++    { ACTION_WPS_VOLUP,         BUTTON_UP|BUTTON_REPEAT,     BUTTON_NONE },
++    { ACTION_WPS_VOLDOWN,       BUTTON_DOWN,                 BUTTON_NONE },
++    { ACTION_WPS_VOLDOWN,       BUTTON_DOWN|BUTTON_REPEAT,   BUTTON_NONE },
++    { ACTION_WPS_SKIPNEXT,      BUTTON_SCROLL_FWD,           BUTTON_NONE },
++    { ACTION_WPS_SKIPPREV,      BUTTON_SCROLL_BACK,          BUTTON_NONE },
+     { ACTION_WPS_BROWSE,        BUTTON_BACK,                 BUTTON_NONE },
+     { ACTION_WPS_MENU,          BUTTON_MENU|BUTTON_REL,      BUTTON_MENU },
+     { ACTION_WPS_CONTEXT,       BUTTON_MENU|BUTTON_REPEAT,   BUTTON_MENU },
+     
+-    { ACTION_WPS_VOLUP,     BUTTON_SCROLL_FWD,                   BUTTON_NONE },
+-    { ACTION_WPS_VOLUP,     BUTTON_SCROLL_FWD|BUTTON_REPEAT,     BUTTON_NONE },
+-    { ACTION_WPS_VOLDOWN,   BUTTON_SCROLL_BACK,                  BUTTON_NONE },
+-    { ACTION_WPS_VOLDOWN,   BUTTON_SCROLL_BACK|BUTTON_REPEAT,    BUTTON_NONE },
+ 
+     LAST_ITEM_IN_LIST
+ }; /* button_context_wps */
+diff --git a/firmware/target/hosted/sdl/app/button-application.c b/firmware/target/hosted/sdl/app/button-application.c
+index 939580a..64e8a50 100644
+--- a/firmware/target/hosted/sdl/app/button-application.c
++++ b/firmware/target/hosted/sdl/app/button-application.c
+@@ -40,28 +40,24 @@ int key_to_button(int keyboard_key)
+             new_btn = BUTTON_TOPLEFT;
+             break;
+         case SDLK_KP_8:
+-        case SDLK_UP:
+             new_btn = BUTTON_TOPMIDDLE;
+             break;
+         case SDLK_KP_9:
+             new_btn = BUTTON_TOPRIGHT;
+             break;
+         case SDLK_KP_4:
+-        case SDLK_LEFT:
+             new_btn = BUTTON_MIDLEFT;
+             break;
+         case SDLK_KP_5:
+             new_btn = BUTTON_CENTER;
+             break;
+         case SDLK_KP_6:
+-        case SDLK_RIGHT:
+             new_btn = BUTTON_MIDRIGHT;
+             break;
+         case SDLK_KP_1:
+             new_btn = BUTTON_BOTTOMLEFT;
+             break;
+         case SDLK_KP_2:
+-        case SDLK_DOWN:
+             new_btn = BUTTON_BOTTOMMIDDLE;
+             break;
+         case SDLK_KP_3:
+@@ -73,6 +69,46 @@ int key_to_button(int keyboard_key)
+         case SDL_BUTTON_MIDDLE:
+             new_btn = BUTTON_MIDRIGHT;
+             break;
++        /* Keyboard / gamepad (rgos-padd nav mode) keys, mapped to the
++         * SDL_PAD buttons that keymap-sdl.c knows: arrows move, Enter = OK,
++         * Esc = back, Backspace = menu, Space = play/pause,
++         * Tab / Shift+Tab = next / previous. */
++        case SDLK_UP:
++            new_btn = BUTTON_UP;
++            break;
++        case SDLK_DOWN:
++            new_btn = BUTTON_DOWN;
++            break;
++        case SDLK_LEFT:
++            new_btn = BUTTON_LEFT;
++            break;
++        case SDLK_RIGHT:
++            new_btn = BUTTON_RIGHT;
++            break;
++        case SDLK_RETURN:
++        case SDLK_KP_ENTER:
++            new_btn = BUTTON_CENTER;
++            break;
++        case SDLK_ESCAPE:
++            new_btn = BUTTON_BACK;
++            break;
++        case SDLK_BACKSPACE:
++        case SDLK_MENU:
++            new_btn = BUTTON_MENU;
++            break;
++        case SDLK_SPACE:
++            new_btn = BUTTON_SELECT;
++            break;
++        case SDLK_TAB:
++            new_btn = (SDL_GetModState() & KMOD_SHIFT) ? BUTTON_SCROLL_BACK
++                                                       : BUTTON_SCROLL_FWD;
++            break;
++        case SDLK_PAGEUP:
++            new_btn = BUTTON_SCROLL_BACK;
++            break;
++        case SDLK_PAGEDOWN:
++            new_btn = BUTTON_SCROLL_FWD;
++            break;
+         default:
+             break;
+     }

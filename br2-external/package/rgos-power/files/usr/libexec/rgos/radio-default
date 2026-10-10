@@ -12,6 +12,8 @@ esac
 devpath="$(readlink -f "/sys/class/rfkill/${name}")"
 saved="/var/lib/systemd/rfkill/$(systemd-escape --path "${devpath#/sys}" 2>/dev/null):${type}"
 [[ -e "${saved}" ]] && exit 0
+# A Wi-Fi network was provisioned on the card this boot (rgos-bootconfig)
+[[ "${type}" == wlan && -e /run/rgos/wifi-provisioned ]] && exit 0
 if [[ "$(rgos-power-conf "${key}" off)" == off ]]; then
     echo 1 >"/sys/class/rfkill/${name}/soft"
 fi

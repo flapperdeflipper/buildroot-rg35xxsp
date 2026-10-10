@@ -1,0 +1,25 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: RGOS <noreply@localhost>
+Date: Sat, 10 Oct 2026 21:00:00 +0200
+Subject: [PATCH] package/gdk-pixbuf: host: enable the XPM/XBM/... loaders
+
+gdk-pixbuf 2.42.12 moved the XPM, XBM, TGA, ICNS, ... loaders behind
+-Dothers (disabled by default). NetSurf's GTK frontend converts its
+netsurf.xpm icon with glib-compile-resources (preprocess="to-pixdata"),
+which needs the host XPM loader, and fails without it.
+---
+ package/gdk-pixbuf/gdk-pixbuf.mk | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/package/gdk-pixbuf/gdk-pixbuf.mk b/package/gdk-pixbuf/gdk-pixbuf.mk
+index aebaee52c2..08b93c129a 100644
+--- a/package/gdk-pixbuf/gdk-pixbuf.mk
++++ b/package/gdk-pixbuf/gdk-pixbuf.mk
+@@ -29,6 +29,7 @@ HOST_GDK_PIXBUF_CONF_OPTS = \
+ 	-Dinstalled_tests=false \
+ 	-Dintrospection=disabled \
+ 	-Drelocatable=true \
++	-Dothers=enabled \
+ 	-Dman=false
+ 
+ ifeq ($(BR2_STATIC_LIBS),y)

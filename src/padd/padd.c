@@ -33,6 +33,10 @@
  *                   rgos-oskd, which opens it like a phone when a text app
  *                   is activated and no hardware keyboard is attached)
  *   warp <x> <y>    put the pointer at screen pixel x,y (absolute device)
+ *   osk_park        put the pointer on its key again (after the keyboard
+ *                   appeared, so the compositor gives it pointer focus)
+ *   osk_layout <name>  the on-screen keyboard switched layers (rgos-osk
+ *                   reports wvkbd's layout name); picks the key grid
  *
  * Lid switches are watched too (never grabbed): on_lid_close / on_lid_open.
  */
@@ -63,6 +67,9 @@
 #define MAX_KEYS      4
 #define MAX_PRESSED   KEY_CNT
 #define TICK_MS       16
+#define OSK_LAYOUTS   4
+#define OSK_ROWS      6
+#define OSK_KEYS      24
 
 enum mode { MODE_NAV, MODE_MOUSE, MODE_OSK, MODE_PASSTHROUGH, MODE_COUNT };
 enum layer { LAYER_NAV, LAYER_MOUSE, LAYER_OSK, LAYER_MENU, LAYER_COUNT };
@@ -93,6 +100,15 @@ struct binding {
 	char *cmd;
 };
 
+/* Key grid of one wvkbd layout: key widths per row in wvkbd's units,
+ * negative = gap. Lets the d-pad jump from key centre to key centre. */
+struct osk_layout {
+	char name[32];
+	int nrows;
+	int nkeys[OSK_ROWS];
+	double units[OSK_ROWS][OSK_KEYS];
+};
+
 struct config {
 	struct binding bindings[MAX_BINDINGS];
 	int nbindings;
@@ -101,7 +117,11 @@ struct config {
 	int speed_min, speed_max, accel_ticks;
 	int tap_px, hold_delay_ms;    /* d-pad tap = one nudge; hold = glide */
 	int scroll_repeat_ms;
-	int step_x, step_y;
+	int step_x, step_y;          /* fallback when no key grid is known */
+	int osk_height;              /* wvkbd height (-L), at the screen bottom */
+	int osk_start_row, osk_start_col;
+	struct osk_layout osk_layouts[OSK_LAYOUTS];
+	int osk_nlayouts;
 	int screen_w, screen_h;      /* range of the absolute "warp" device */
 	int start_mode;
 	char *on_enter[MODE_COUNT];  /* shell commands run on mode changes */
@@ -131,6 +151,9 @@ static char ctl_buf[256];
 static size_t ctl_len;
 static enum mode mode = MODE_NAV;
 static enum mode osk_return = MODE_NAV;  /* mode to go back to after osk */
+static int osk_cur;                      /* current grid, -1 = unknown layout */
+static int osk_row = -1, osk_col;        /* key the pointer is on */
+static int last_warp_x = -1, last_warp_y = -1;
 static struct active active[MAX_PRESSED];
 static bool hold_down, hold_used;
 static int move_held[4];
@@ -184,11 +207,11 @@ static void config_defaults(struct config *c)
 	c->hold_button = BTN_MODE;
 	c->passthrough_exit[0] = BTN_MODE;
 	c->passthrough_exit[1] = BTN_START;
-	c->speed_min = 1;
-	c->speed_max = 12;
-	c->accel_ticks = 60;
+	c->speed_min = 2;
+	c->speed_max = 16;
+	c->accel_ticks = 40;
 	c->tap_px = 2;
-	c->hold_delay_ms = 180;
+	c->hold_delay_ms = 150;
 	c->scroll_repeat_ms = 120;
 	c->step_x = 49;
 	c->step_y = 45;
@@ -293,6 +316,33 @@ static bool parse_set(struct config *c, char *opt, char *rest, int lineno)
 		return sscanf(rest, "%d", &c->scroll_repeat_ms) == 1;
 	} else if (!strcmp(opt, "osk_step")) {
 		return sscanf(rest, "%d %d", &c->step_x, &c->step_y) == 2;
+	} else if (!strcmp(opt, "osk_height")) {
+		return sscanf(rest, "%d", &c->osk_height) == 1 && c->osk_height > 0;
+	} else if (!strcmp(opt, "osk_start")) {
+		return sscanf(rest, "%d %d", &c->osk_start_row, &c->osk_start_col) == 2;
+	} else if (!strcmp(opt, "osk_layout")) {
+		/* osk_layout <name> <widths> / <widths> / ... */
+		struct osk_layout *l;
+		char *name = strtok(rest, " \t"), *tok;
+		if (!name || c->osk_nlayouts >= OSK_LAYOUTS)
+			return false;
+		l = &c->osk_layouts[c->osk_nlayouts];
+		memset(l, 0, sizeof(*l));
+		snprintf(l->name, sizeof(l->name), "%s", name);
+		l->nrows = 1;
+		while ((tok = strtok(NULL, " \t"))) {
+			if (!strcmp(tok, "/")) {
+				if (l->nrows >= OSK_ROWS)
+					return false;
+				l->nrows++;
+			} else if (l->nkeys[l->nrows - 1] < OSK_KEYS) {
+				l->units[l->nrows - 1][l->nkeys[l->nrows - 1]++] = strtod(tok, NULL);
+			} else {
+				return false;
+			}
+		}
+		c->osk_nlayouts++;
+		return true;
 	} else if (!strcmp(opt, "screen")) {
 		return sscanf(rest, "%d %d", &c->screen_w, &c->screen_h) == 2 &&
 		       c->screen_w > 1 && c->screen_h > 1;
@@ -473,6 +523,133 @@ static void write_mode_file(void)
 static void release_all(void);
 static void set_grab(bool grab);
 static void set_mode(enum mode m);
+static void warp(int x, int y);
+
+/* --- on-screen keyboard key grid ------------------------------------------
+ * Mirrors wvkbd's layout code: each row is split over the full screen width
+ * in proportion to the key widths; rows share osk_height equally. */
+static const struct osk_layout *osk_grid(void)
+{
+	return osk_cur >= 0 && osk_cur < cfg.osk_nlayouts ? &cfg.osk_layouts[osk_cur] : NULL;
+}
+
+static int osk_row_keys(const struct osk_layout *l, int row)
+{
+	int n = 0;
+	for (int i = 0; i < l->nkeys[row]; i++)
+		n += l->units[row][i] > 0;
+	return n;
+}
+
+/* Horizontal centre of the col-th key (gaps not counted) of a row, in
+ * screen pixels (unrounded, so equal distances compare equal) */
+static double osk_center_x(const struct osk_layout *l, int row, int col)
+{
+	double len = 0, pos = 0;
+	int k = 0;
+
+	for (int i = 0; i < l->nkeys[row]; i++)
+		len += l->units[row][i] < 0 ? -l->units[row][i] : l->units[row][i];
+	for (int i = 0; i < l->nkeys[row] && len > 0; i++) {
+		double w = l->units[row][i] < 0 ? -l->units[row][i] : l->units[row][i];
+		if (l->units[row][i] > 0 && k++ == col)
+			return (pos + w / 2) * cfg.screen_w / len;
+		pos += w;
+	}
+	return 0;
+}
+
+static void osk_center(const struct osk_layout *l, int row, int col, int *x, int *y)
+{
+	*x = (int)osk_center_x(l, row, col);
+	*y = cfg.screen_h - cfg.osk_height + (cfg.osk_height / l->nrows) * row +
+	     cfg.osk_height / l->nrows / 2;
+}
+
+/* Key in a row nearest to x. Rows are staggered by half a key, so ties are
+ * common: like on a real keyboard, going up prefers the key to the left
+ * (g -> t), going down the one to the right (y -> h). */
+static int osk_nearest(const struct osk_layout *l, int row, double x, bool prefer_right)
+{
+	int best = 0;
+	double bestd = 1e9;
+
+	for (int c = 0; c < osk_row_keys(l, row); c++) {
+		double d = osk_center_x(l, row, c) - x;
+		d = d < 0 ? -d : d;
+		if (d < bestd - 0.01 || (prefer_right && d < bestd + 0.01)) {
+			bestd = d < bestd ? d : bestd;
+			best = c;
+		}
+	}
+	return best;
+}
+
+/* Put the pointer on the centre of key (row, col) of the current grid */
+static void osk_goto(int row, int col)
+{
+	const struct osk_layout *l = osk_grid();
+	int x, y;
+
+	if (!l || l->nrows == 0)
+		return;
+	osk_row = row < 0 ? 0 : row >= l->nrows ? l->nrows - 1 : row;
+	osk_col = col < 0 ? 0 : col;
+	if (osk_col >= osk_row_keys(l, osk_row))
+		osk_col = osk_row_keys(l, osk_row) - 1;
+	osk_center(l, osk_row, osk_col, &x, &y);
+	warp(x, y);
+}
+
+/* One d-pad step: left/right = next key, up/down = nearest key in the next
+ * row (rows are staggered, so a fixed pixel step would hit key edges).
+ * Without a grid for the shown layout, fall back to fixed steps. */
+static void osk_step(int dir)
+{
+	const struct osk_layout *l = osk_grid();
+	double x;
+
+	if (!l || osk_row < 0 || osk_row >= l->nrows) {
+		int dx = dir == DIR_LEFT ? -cfg.step_x : dir == DIR_RIGHT ? cfg.step_x : 0;
+		int dy = dir == DIR_UP ? -cfg.step_y : dir == DIR_DOWN ? cfg.step_y : 0;
+		if (dx)
+			libevdev_uinput_write_event(ui_mouse, EV_REL, REL_X, dx);
+		if (dy)
+			libevdev_uinput_write_event(ui_mouse, EV_REL, REL_Y, dy);
+		libevdev_uinput_write_event(ui_mouse, EV_SYN, SYN_REPORT, 0);
+		return;
+	}
+	x = osk_center_x(l, osk_row, osk_col);
+	switch (dir) {
+	case DIR_LEFT:  osk_goto(osk_row, osk_col - 1); break;
+	case DIR_RIGHT: osk_goto(osk_row, osk_col + 1); break;
+	case DIR_UP:
+	case DIR_DOWN: {
+		int row = osk_row + (dir == DIR_UP ? -1 : 1);
+		if (row < 0 || row >= l->nrows)
+			break;
+		osk_goto(row, osk_nearest(l, row, x, dir == DIR_DOWN));
+		break;
+	}
+	}
+}
+
+/* wvkbd switched layers: keep the pointer on the nearest key of the new one */
+static void osk_set_layout(const char *name)
+{
+	const struct osk_layout *old = osk_grid();
+	double x = cfg.screen_w / 2.0;
+
+	if (old && osk_row >= 0 && osk_row < old->nrows)
+		x = osk_center_x(old, osk_row, osk_col);
+	osk_cur = -1;
+	for (int i = 0; i < cfg.osk_nlayouts; i++)
+		if (!strcmp(cfg.osk_layouts[i].name, name))
+			osk_cur = i;
+	logmsg("osk layout: %s%s", name, osk_cur < 0 ? " (no key grid, fixed steps)" : "");
+	if (osk_grid() && mode == MODE_OSK && osk_row >= 0)
+		osk_goto(osk_row, osk_nearest(osk_grid(), osk_row < osk_grid()->nrows ? osk_row : 0, x, false));
+}
 
 /* Show or hide the on-screen keyboard; a no-op when already in that state.
  * "Off" returns to the mode the user was in before the keyboard appeared. */
@@ -496,6 +673,8 @@ static void set_mode(enum mode m)
 	if (m == MODE_OSK)
 		osk_return = mode;
 	mode = m;
+	if (mode == MODE_OSK)
+		osk_goto(cfg.osk_start_row, cfg.osk_start_col);
 	if (cfg.on_enter[mode])
 		run_command(cfg.on_enter[mode]);
 	set_grab(mode != MODE_PASSTHROUGH);
@@ -530,16 +709,9 @@ static void action_press(const struct binding *b)
 		scroll_binding = b;
 		scroll_next_ms = 0;  /* scroll immediately on the next tick */
 		break;
-	case ACT_STEP: {
-		int dx = b->arg == DIR_LEFT ? -cfg.step_x : b->arg == DIR_RIGHT ? cfg.step_x : 0;
-		int dy = b->arg == DIR_UP ? -cfg.step_y : b->arg == DIR_DOWN ? cfg.step_y : 0;
-		if (dx)
-			libevdev_uinput_write_event(ui_mouse, EV_REL, REL_X, dx);
-		if (dy)
-			libevdev_uinput_write_event(ui_mouse, EV_REL, REL_Y, dy);
-		libevdev_uinput_write_event(ui_mouse, EV_SYN, SYN_REPORT, 0);
+	case ACT_STEP:
+		osk_step(b->arg);
 		break;
-	}
 	case ACT_EXEC:
 		run_command(b->cmd);
 		break;
@@ -631,6 +803,15 @@ static void warp(int x, int y)
 	if (y < 0) y = 0;
 	if (x >= cfg.screen_w) x = cfg.screen_w - 1;
 	if (y >= cfg.screen_h) y = cfg.screen_h - 1;
+	/* The kernel drops absolute events that repeat the last value, so a
+	 * warp to the same spot (re-park, or back after relative moves) would
+	 * do nothing: step one pixel aside first. */
+	if (x == last_warp_x && y == last_warp_y) {
+		libevdev_uinput_write_event(ui_warp, EV_ABS, ABS_X, x > 0 ? x - 1 : x + 1);
+		libevdev_uinput_write_event(ui_warp, EV_SYN, SYN_REPORT, 0);
+	}
+	last_warp_x = x;
+	last_warp_y = y;
 	libevdev_uinput_write_event(ui_warp, EV_ABS, ABS_X, x);
 	libevdev_uinput_write_event(ui_warp, EV_ABS, ABS_Y, y);
 	libevdev_uinput_write_event(ui_warp, EV_SYN, SYN_REPORT, 0);
@@ -875,6 +1056,11 @@ static void ctl_command(char *line)
 	} else if (!strcmp(cmd, "warp") && arg && sscanf(arg, "%d", &x) == 1 &&
 		   (arg = strtok(NULL, " \t")) && sscanf(arg, "%d", &y) == 1) {
 		warp(x, y);
+	} else if (!strcmp(cmd, "osk_park")) {
+		if (mode == MODE_OSK && osk_row >= 0)
+			osk_goto(osk_row, osk_col);
+	} else if (!strcmp(cmd, "osk_layout") && arg) {
+		osk_set_layout(arg);
 	} else {
 		logmsg("control: unknown command '%s'", cmd);
 	}

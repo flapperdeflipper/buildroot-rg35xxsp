@@ -19,6 +19,7 @@ config BR2_PACKAGE_RGOS_DESKTOP
 	select BR2_PACKAGE_ALSA_UTILS_AMIXER
 	select BR2_PACKAGE_PROCPS_NG # pkill/pgrep/pidof
 	select BR2_PACKAGE_SUDO # power menu
+	select BR2_PACKAGE_MAKO # notifications
 	select BR2_PACKAGE_DEJAVU
 	select BR2_PACKAGE_ADWAITA_ICON_THEME
 	help

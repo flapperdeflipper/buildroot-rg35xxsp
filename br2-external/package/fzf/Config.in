@@ -1,0 +1,8 @@
+config BR2_PACKAGE_FZF
+	bool "fzf"
+	depends on BR2_PACKAGE_HOST_GO_TARGET_ARCH_SUPPORTS
+	select BR2_PACKAGE_HOST_GO
+	help
+	  Command-line fuzzy finder.
+
+	  https://github.com/junegunn/fzf

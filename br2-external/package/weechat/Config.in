@@ -1,0 +1,18 @@
+config BR2_PACKAGE_WEECHAT
+	bool "weechat"
+	depends on BR2_USE_WCHAR
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	depends on BR2_USE_MMU
+	select BR2_PACKAGE_NCURSES
+	select BR2_PACKAGE_NCURSES_WCHAR
+	select BR2_PACKAGE_LIBCURL
+	select BR2_PACKAGE_GNUTLS
+	select BR2_PACKAGE_LIBGCRYPT
+	select BR2_PACKAGE_ZLIB
+	select BR2_PACKAGE_ZSTD
+	select BR2_PACKAGE_CJSON
+	help
+	  Fast, light and extensible terminal chat client (IRC).
+	  Python scripting is enabled when python3 is.
+
+	  https://weechat.org/

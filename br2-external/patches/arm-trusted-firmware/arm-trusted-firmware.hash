@@ -1,0 +1,4 @@
+# ROCKNIX TF-A H700 system-suspend patch, from the pinned commit in
+# external.mk (RGOS_ROCKNIX_ATF_PATCH). Same content as the copy listed in
+# patches/rgos-suspend-stub/rgos-suspend-stub.hash (shared download).
+sha256  6928fc3eb21a47c77887c6226269e7da8f7795d02235b8bda59b56fa316f3725  001-allwinner-h616-psci-system-suspend.patch
