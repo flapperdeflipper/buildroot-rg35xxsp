@@ -1,4 +1,4 @@
-From b3f5a70a8d5c0ae2ba99f795b13d1befcd282636 Mon Sep 17 00:00:00 2001
+From 8244849d5b3fbfea4d22c0ae249dce9c3e3d1712 Mon Sep 17 00:00:00 2001
 From: RGOS <noreply@localhost>
 Date: Sat, 10 Oct 2026 15:20:18 +0200
 Subject: [PATCH] package/mesa3d: panfrost precompiler only needs host LLVM
@@ -14,8 +14,8 @@ NEEDS_PRECOMP_COMPILER, and making panfrost depend on target LLVM, put
 ~210 MiB of LLVM/clang/libclc on the target for nothing.
 ---
  package/mesa3d/Config.in | 13 +++++++------
- package/mesa3d/mesa3d.mk |  5 ++++-
- 2 files changed, 11 insertions(+), 7 deletions(-)
+ package/mesa3d/mesa3d.mk | 13 ++++++++++++-
+ 2 files changed, 19 insertions(+), 7 deletions(-)
 
 diff --git a/package/mesa3d/Config.in b/package/mesa3d/Config.in
 index e184039150..41d129f0e9 100644
@@ -55,7 +55,7 @@ index e184039150..41d129f0e9 100644
  config BR2_PACKAGE_MESA3D_GALLIUM_DRIVER_R300
  	bool "Gallium Radeon R300 driver"
 diff --git a/package/mesa3d/mesa3d.mk b/package/mesa3d/mesa3d.mk
-index 87c7f427e4..f2a5f6f953 100644
+index 87c7f427e4..c722b8f700 100644
 --- a/package/mesa3d/mesa3d.mk
 +++ b/package/mesa3d/mesa3d.mk
 @@ -178,9 +178,12 @@ ifeq ($(BR2_PACKAGE_MESA3D_VULKAN_DRIVER_INTEL),y)
@@ -72,6 +72,21 @@ index 87c7f427e4..f2a5f6f953 100644
  endif
  
  ifeq ($(BR2_PACKAGE_MESA3D_VULKAN_DRIVER),)
+@@ -349,6 +352,14 @@ HOST_MESA3D_CONF_OPTS = \
+ 	-Dglx=disabled \
+ 	-Dvulkan-drivers=""
+ 
++# host-llvm is built with or without RTTI following BR2_PACKAGE_LLVM_RTTI
++# (which used to be forced on by the OpenCL selection); Mesa must match it.
++ifeq ($(BR2_PACKAGE_LLVM_RTTI),y)
++HOST_MESA3D_CONF_OPTS += -Dcpp_rtti=true
++else
++HOST_MESA3D_CONF_OPTS += -Dcpp_rtti=false
++endif
++
+ HOST_MESA3D_DEPENDENCIES = \
+ 	host-libclc \
+ 	host-libdrm \
 -- 
 2.47.3
 

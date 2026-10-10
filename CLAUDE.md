@@ -3,6 +3,7 @@
 Buildroot + systemd OS for the Anbernic RG35XX SP (Allwinner H700). Desktop:
 labwc + sfwbar, foot, Mousepad, PCManFM; rgos-padd maps the buttons.
 See README.md (usage) and docs/ (roadmap, hardware, boot flow).
+**Current status and next steps: docs/HANDOVER.md** (keep it updated).
 
 ## Builds
 

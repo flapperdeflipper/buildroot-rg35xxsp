@@ -32,13 +32,15 @@ objs="$(objects)"
 ordered="$(busctl --json=short call "${IWD}" "${station}" "${IWD}.Station" GetOrderedNetworks)"
 
 # One line per network: <connected> <known> <type> <dBm> <name>
-mapfile -t nets < <(jq -rn --argjson o "${objs}" --argjson n "${ordered}" '
+mapfile -t nets < <(
+    jq -rn --argjson o "${objs}" --argjson n "${ordered}" '
     $n.data[0][] as [$path, $sig]
     | $o.data[0][$path]["net.connman.iwd.Network"] as $net
     | select($net != null)
     | [ (if $net.Connected.data then "1" else "0" end),
         (if $net.KnownNetwork then "1" else "0" end),
-        $net.Type.data, (($sig / 100) | floor | tostring), $net.Name.data ] | join("\t")')
+        $net.Type.data, (($sig / 100) | floor | tostring), $net.Name.data ] | join("\t")'
+)
 
 entries=("Disconnect")
 for n in "${nets[@]}"; do
