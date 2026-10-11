@@ -1,0 +1,14 @@
+config BR2_PACKAGE_RTKIT
+	bool "rtkit"
+	depends on BR2_INIT_SYSTEMD
+	depends on BR2_TOOLCHAIN_HAS_THREADS
+	select BR2_PACKAGE_DBUS
+	select BR2_PACKAGE_LIBCAP
+	help
+	  RealtimeKit: D-Bus service granting realtime scheduling
+	  (SCHED_FIFO) to user processes. Without it pipewire's
+	  module-rt stays SCHED_OTHER (the "RTKit" lines in the journal
+	  are the fallback), since user services cannot hold
+	  CAP_SYS_NICE themselves.
+
+	  https://github.com/heftig/rtkit

@@ -34,6 +34,9 @@ A testing pipeline will merge these one by one later.
       memory floor, RA defaults config); QEMU-validated
 - [ ] USB gadget mode (gadget/): NCM + ACM configfs script and unit —
       see gadget/NOTES.md for the kernel lines still needed
+- [x] rtkit 0.13 (package/rtkit): RTKit D-Bus daemon so pipewire's
+      module-rt gets SCHED_FIFO (audio follow-up) - NOTES.md has the
+      dbus-broker policy caveat + promotion steps
 - [ ] candidates, not started: SDR TUI frontend, batteryplus (only if
       the AXP717 percentage drifts), charge-only-boot U-Boot patch port
       (ROCKNIX 0002-sunxi-axp717-charge-only-boot onto our 2026.07 base)
