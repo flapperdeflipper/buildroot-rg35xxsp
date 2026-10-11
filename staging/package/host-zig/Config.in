@@ -1,0 +1,8 @@
+config BR2_PACKAGE_HOST_ZIG
+	bool "host-zig"
+	help
+	  Pinned official zig 0.14.1 prebuilt for x86_64 Linux. Build-time
+	  only; lets zig-based target packages (mepo) cross-compile with
+	  zig's bundled glibc stubs instead of bootstrapping the compiler.
+
+	  https://ziglang.org/

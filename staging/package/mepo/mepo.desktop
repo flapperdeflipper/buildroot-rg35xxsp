@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Maps
+Comment=OpenStreetMap (online, or download regions for offline use)
+Exec=rgos-mepo
+Icon=mark-location
+Categories=Network;Utility;Maps;
+Terminal=false

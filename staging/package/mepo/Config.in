@@ -1,0 +1,18 @@
+config BR2_PACKAGE_MEPO
+	bool "mepo"
+	depends on BR2_aarch64
+	depends on BR2_USE_MMU
+	select BR2_PACKAGE_SDL2
+	select BR2_PACKAGE_SDL2_TTF
+	select BR2_PACKAGE_SDL2_GFX
+	select BR2_PACKAGE_SDL2_IMAGE
+	select BR2_PACKAGE_LIBCURL
+	help
+	  mepo: fast, simple OSM map viewer (Zig + SDL2). Online tiles
+	  with a disk cache; offline map regions downloadable via CLI
+	  (bounding box or radius, multiple zoom levels) into the same
+	  cache. Keyboard-first (rebindable), fits the pad nav mode.
+
+	  https://sr.ht/~mil/mepo/
+
+	  Note: built with a pinned host-zig (0.14.1); GPLv3.

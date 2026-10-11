@@ -31,6 +31,9 @@ A testing pipeline will merge these one by one later.
       copy-image Mesa override — see system/NOTES.md
 - [x] USB gadget mode (gadget/): NCM + ACM configfs script and unit —
       see gadget/NOTES.md for the kernel lines still needed
+- [x] mepo 1.3.4 + host-zig 0.14.1 (package/mepo, package/host-zig):
+      OSM map viewer, Zig+SDL2, online tiles + offline region download,
+      rgos-mepo nav launcher — UNTESTED notes in mepo/NOTES.md
 - [ ] candidates, not started: SDR TUI frontend, batteryplus (only if
       the AXP717 percentage drifts), charge-only-boot U-Boot patch port
       (ROCKNIX 0002-sunxi-axp717-charge-only-boot onto our 2026.07 base)

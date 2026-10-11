@@ -1,0 +1,29 @@
+#!/bin/bash
+# Start mepo (OSM maps) with the pad in nav mode: d-pad = pan (mepo's
+# default arrow binds), Menu (tap) closes the window; A/B/X/Y binds are
+# seeded below once the exact mepolang command names are verified on the
+# device (see staging NOTES.md). The pad mode is restored when mepo exits.
+set -u
+mode_file="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/rgos-padd.mode"
+prev="$(cat "${mode_file}" 2>/dev/null || echo mouse)"
+[[ "${prev}" == osk ]] && prev=mouse
+
+# Tile cache: SD card if it is in, else ~/.cache. Online and offline
+# (prefetched) tiles share this directory. A big offline set belongs on
+# the SD card.
+cachedir="${HOME}/.cache/mepo"
+[[ -d /media/sdcard ]] && cachedir=/media/sdcard/Maps
+mkdir -p "${cachedir}"
+
+cfg="${HOME}/.config/mepo/mepolang.conf"
+if [[ ! -e "${cfg}" ]]; then
+    mkdir -p "$(dirname "${cfg}")"
+    cat >"${cfg}" <<EOF
+# RGOS mepo config. Seeded by rgos-mepo; edit freely, mepo keeps the file.
+tile_cache_directroy ${cachedir}
+EOF
+fi
+
+rgos-padctl mode nav 2>/dev/null
+SDL_VIDEO_WAYLAND_WMCLASS=mepo SDL_VIDEODRIVER=wayland mepo "$@"
+rgos-padctl mode "${prev}" 2>/dev/null
