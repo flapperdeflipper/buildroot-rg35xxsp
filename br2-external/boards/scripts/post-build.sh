@@ -77,6 +77,29 @@ rm -f "${TARGET_DIR}"/usr/share/rockbox/fonts/*WenQangYi-* \
 # matching .gresource.
 rm -rf "${TARGET_DIR}"/usr/share/gtk-3.0/emoji
 
+# --- Size: files nothing on the device ever reads (curated, keep it that
+# way; details + measurements in tmp/agents/size-trim.md) ---
+# Boot files: U-Boot loads kernel/DTBs from the RGOS-BOOT vfat that mounts
+# over /boot, so the copies the kernel package drops into the rootfs stay
+# shadowed forever. post-image.sh builds the vfat from BINARIES_DIR, never
+# from here; /boot itself stays as the mount point.
+rm -f "${TARGET_DIR}"/boot/Image "${TARGET_DIR}"/boot/*.dtb
+# udev reads only the compiled hwdb.bin; the hwdb.d text sources exist to
+# rebuild it (systemd-hwdb update), which nothing on the device runs.
+rm -rf "${TARGET_DIR}/usr/lib/udev/hwdb.d"
+# font-awesome is a web-frontend package (svg/js/css/woff2); nothing on the
+# desktop references it and fontconfig cannot load woff2. The rm also guards
+# output dirs built before the package was dropped from the defconfig.
+rm -rf "${TARGET_DIR}/usr/share/font-awesome" \
+      "${TARGET_DIR}/usr/share/fonts/font-awesome"
+# Adwaita: the panel is 640x480, so icon sizes above 64 are never requested
+# (gtk-icon-theme-name=Adwaita). There is no SVG loader in the image (no
+# librsvg), so scalable/ never rendered anything. Cursors stay
+# (XCURSOR_THEME=Adwaita). icon-theme.cache is removed with the pruned dirs:
+# its stale entries would point at deleted files (GTK then scans the dirs).
+rm -rf "${TARGET_DIR}"/usr/share/icons/Adwaita/{8x8,96x96,256x256,512x512,scalable,scalable-up-to-32}
+rm -f "${TARGET_DIR}"/usr/share/icons/*/icon-theme.cache
+
 # Upstream sshd_config has no Include; prepend it so sshd_config.d drop-ins
 # apply (sshd uses the first value it sees for each option)
 sshd_config="${TARGET_DIR}/etc/ssh/sshd_config"
