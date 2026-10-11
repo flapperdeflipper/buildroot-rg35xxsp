@@ -45,7 +45,6 @@ menu "RGOS"
 	source "$BR2_EXTERNAL_RGOS_PATH/package/prettyping/Config.in"
 	source "$BR2_EXTERNAL_RGOS_PATH/package/syncthing/Config.in"
 	source "$BR2_EXTERNAL_RGOS_PATH/package/rockbox/Config.in"
-	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-web/Config.in"
 
 	comment "Games"
 	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-game/Config.in"

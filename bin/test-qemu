@@ -295,9 +295,19 @@ check "osk off via FIFO, back to pointer mode" mode_is mouse
 
 log "On-screen keyboard: d-pad jumps key to key"
 # Type into a raw terminal: the keyboard opens on "g"; up/down cross the
-# staggered rows (ties: up = left key, down = right key)
+# staggered rows (ties: up = left key, down = right key).
+# Clean slate; click the new window while still in pointer mode so it
+# holds focus, then a real mode change into osk makes padd re-park the
+# pointer on "g" (an already-active osk would skip the park).
+vm 'pkill -x foot mousepad pcmanfm mpv geany netsurf-gtk3 netsurf srain rockbox MiniBrowser WebKitWebProcess WebKitNetworkProcess fuzzel 2>/dev/null'
+sleep 1
 gui "foot --title osktest sh -c 'stty raw -echo; exec cat > /tmp/osk.txt'" >/dev/null 2>&1 &
 sleep 2
+gui rgos-padctl mode mouse
+sleep 0.4
+gui rgos-padctl warp 320 120
+PAD_SETTLE=0.3 pad tap BTN_EAST
+sleep 0.4
 gui rgos-padctl osk on
 sleep 1
 for b in BTN_EAST BTN_DPAD_UP BTN_EAST BTN_DPAD_RIGHT BTN_EAST BTN_DPAD_DOWN BTN_EAST \
@@ -305,7 +315,7 @@ for b in BTN_EAST BTN_DPAD_UP BTN_EAST BTN_DPAD_RIGHT BTN_EAST BTN_DPAD_DOWN BTN
     PAD_SETTLE=0.3 pad tap "${b}"
 done
 sleep 0.5
-check "keys typed exactly: g t y h b space (got: '$(vm cat /tmp/osk.txt 2>/dev/null)')" vm 'test "$(cat /tmp/osk.txt)" = "gtyhb "'
+check "keys typed exactly: g t y h b space (got: '$(vm cat /tmp/osk.txt 2>/dev/null)', mode $(vm cat /run/user/1000/rgos-padd.mode), wins [$(vm pgrep -a "foot|srain|mpv|geany|rockbox|pcmanfm|mousepad|MiniBrowser|netsurf" | awk '{print $2}' | sort -u | tr '\n' ',')])" vm 'test "$(cat /tmp/osk.txt)" = "gtyhb "'
 # From space, 4x left = the layer key; the grid follows wvkbd's layer
 for b in BTN_DPAD_LEFT BTN_DPAD_LEFT BTN_DPAD_LEFT BTN_DPAD_LEFT BTN_EAST; do
     PAD_SETTLE=0.3 pad tap "${b}"
@@ -472,16 +482,6 @@ vm 'pkill -x rockbox 2>/dev/null || true'
 # Rockbox saves its settings on exit; the launcher restores the mode after
 for _ in $(seq 1 10); do mode_is "${before_rockbox}" && break; sleep 0.5; done
 check "pad mode restored after Rockbox (${before_rockbox})" mode_is "${before_rockbox}"
-# WebKit browser (QEMU evaluation build only): opens and renders a page
-if vm 'command -v rgos-web' >/dev/null 2>&1; then
-    gui "setsid -f rgos-web file:///usr/share/rgos/webtest.html >/dev/null 2>&1"
-    check "WebKit browser starts (MiniBrowser)" wait_for MiniBrowser 30
-    sleep 8
-    check "WebKit web process runs (page loaded)" vm 'pgrep -f WebKitWebProcess'
-    shot apps-webkit
-    check "WebKit browser RAM < 600 MB (MiniBrowser + web process; 400 failed: 506 measured, device decides)" vm 'test "$(ps -C MiniBrowser,WebKitWebProcess,WebKitNetworkProcess -o rss= | awk "{s+=\$1} END {print int(s/1024)}")" -lt 600'
-    vm 'pkill -x MiniBrowser'
-fi
 check "YouTube app in the menu" vm 'test -f /usr/share/applications/rgos-youtube.desktop'
 check "Geany in the menu" vm 'test -f /usr/share/applications/geany.desktop'
 check "Srain in the menu" vm 'test -f /usr/share/applications/im.srain.Srain.desktop'

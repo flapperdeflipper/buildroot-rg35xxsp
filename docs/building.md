@@ -56,8 +56,8 @@ QEMU test runs get their own instance directory and SSH port under
 - Disk full: check with `bin/buildbox.sh ssh 'du -sh ~/output-*'`, remove
   an output directory, or prune one with
   `bin/buildbox.sh ssh 'bash ~/work/<board>/bin/build-image.sh --prune <board>'`.
-- Out of memory during big compiles: WebKit's JavaScriptCore can kill
-  the compiler. The VM ships a 12 GB swapfile for this (`/swapfile-build`,
+- Out of memory during big compiles: a heavy source file can kill the
+  compiler. The VM ships a 12 GB swapfile for this (`/swapfile-build`,
   registered in `/etc/fstab`). After recreating the VM:
 
   ```bash
@@ -65,5 +65,4 @@ QEMU test runs get their own instance directory and SSH port under
   sudo mkswap /swapfile-build && sudo swapon /swapfile-build
   ```
 
-- WebKitGTK needs about 15 GB of disk and 2 to 4 hours for the first
-  build. Everything else stays well below that.
+  For the heaviest packages, cap the parallelism: `RGOS_JOBS=4`.

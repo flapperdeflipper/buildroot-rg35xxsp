@@ -12,10 +12,7 @@ Open things with Start, then Applications.
 - **Files** (PCManFM). The SD card appears as "SD card".
 - **Notes** (Mousepad) and **Geany** for editing code.
 - **Web Browser (NetSurf)**: fast, own engine, limited JavaScript. Good
-  for reading sites and documentation.
-- **Web Browser (WebKit)**: WebKitGTK with MiniBrowser, so full HTTPS and
-  JavaScript. It is heavy. For now it is built for the QEMU test image
-  only, while RAM use is measured on the device.
+  for reading sites and documentation. This is the browser.
 - **Srain** (IRC, GTK) and **WeeChat** (IRC, terminal).
 
 ## YouTube
@@ -73,3 +70,14 @@ supported.
 The panel SD icon and the SD card menu offer Eject and Format. Format
 converts the card to exFAT and asks twice. Cards the system cannot read,
 such as Mac OS Extended, produce a warning with an offer to format.
+
+The menu also copies and backs up the system:
+
+- **Clone RGOS to it** turns the card into a copy of this device's
+  operating system, without personal files. The copy boots on any
+  RG35XX SP and asks for its own setup on first boot.
+- **Backup** writes either the whole card as one compressed image, or
+  just the personal files and settings, onto the card.
+- **Restore** puts a backup back. A full image goes onto the card, which
+  you then swap into the system slot. A data backup restores onto this
+  device and asks for a reboot.

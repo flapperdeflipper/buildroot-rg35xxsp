@@ -152,5 +152,5 @@ Rejected, and why:
 - Aggressive memory sysctls: most restate kernel defaults or never engage
   with our writeback intervals.
 - Firefox or Chromium as the full browser: both are far beyond 1 GB of
-  RAM. NetSurf covers light browsing, WebKitGTK is the evaluated option
-  for the rest (see apps.md).
+  RAM. A WebKitGTK port was evaluated as well and dropped (build time and
+  around 500 MB resident), so NetSurf covers browsing.

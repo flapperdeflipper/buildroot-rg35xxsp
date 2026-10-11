@@ -1,9 +1,0 @@
-[Desktop Entry]
-Type=Application
-Name=Web Browser (WebKit)
-Comment=Full web browser (WebKitGTK, Safari's engine)
-Exec=rgos-web %u
-Icon=web-browser
-Categories=Network;WebBrowser;
-MimeType=text/html;x-scheme-handler/http;x-scheme-handler/https;
-Terminal=false

@@ -78,7 +78,7 @@ fi
 function dirclean_changed_locals() {
     local pkg src stamp new build_dir
     mkdir -p "${OUT}"   # a clean build has no output dir yet
-    for pkg in rgos-desktop rgos-power rgos-youtube rgos-sdcard rgos-web rgos-oskd rgos-padd rgos-padsim rgos-game; do
+    for pkg in rgos-desktop rgos-power rgos-youtube rgos-sdcard rgos-oskd rgos-padd rgos-padsim rgos-game; do
         if [[ -d "${WORK}/br2-external/package/${pkg}/files" ]]; then
             src="${WORK}/br2-external/package/${pkg}/files"
         else
