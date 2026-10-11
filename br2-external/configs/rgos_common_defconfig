@@ -243,6 +243,21 @@ BR2_PACKAGE_SDL2_WAYLAND=y
 BR2_PACKAGE_SDL2_KMSDRM=y
 BR2_PACKAGE_SDL2_OPENGLES=y
 BR2_PACKAGE_ROCKBOX=y
+
+# Emulators (RetroArch + first core set) and the game launcher with the
+# games/background slices; see docs/apps.md. Cores: GB/GBC (gambatte),
+# GBA (mGBA), NES (nestopia), SNES (snes9x), MD/SMS/GG (Genesis-Plus-GX).
+BR2_PACKAGE_RGOS_GAME=y
+BR2_PACKAGE_RETROARCH=y
+BR2_PACKAGE_LIBRETRO_GAMBATTE=y
+BR2_PACKAGE_LIBRETRO_MGBA=y
+BR2_PACKAGE_LIBRETRO_NESTOPIA=y
+BR2_PACKAGE_LIBRETRO_SNES9X=y
+BR2_PACKAGE_LIBRETRO_GENESIS_PLUS_GX=y
+
+# File sync as a session user service; DISABLED by default (enable with
+# "systemctl --user enable --now syncthing" or the services menu).
+BR2_PACKAGE_SYNCTHING=y
 # SDR (RTL2832U dongles; the kernel keeps its DVB driver off them):
 # rtl_* tools, rtl_433 (433/868 MHz sensors), dump1090 (ADS-B), SoapySDR
 BR2_PACKAGE_LIBRTLSDR=y

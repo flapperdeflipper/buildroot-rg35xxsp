@@ -7,15 +7,17 @@ choice="$(printf '%s\n' \
     "Suspend" \
     "Screen off" \
     "Game mode (release pad)" \
+    "Pointer mode (move pad)" \
     "Restart desktop" \
     "Reboot" \
     "Power off" \
-    | fuzzel --dmenu --prompt "Power: " --lines 6)"
+    | fuzzel --dmenu --prompt "Power: " --lines 7)"
 
 case "${choice}" in
     "Suspend")                 rgos-power suspend ;;
     "Screen off")              rgos-screen off ;;
     "Game mode (release pad)") rgos-padctl mode passthrough ;;
+    "Pointer mode (move pad)"  rgos-padctl mode mouse ;;
     "Restart desktop")         sudo -n systemctl restart rgos-session.service ;;
     "Reboot")                  sudo -n systemctl reboot ;;
     "Power off")               sudo -n systemctl poweroff ;;

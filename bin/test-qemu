@@ -203,6 +203,28 @@ check "no foot client/server entries in menu" vm '! rgos-menu | grep -q "Foot Cl
 SHOT_SETTLE=6 shot 01-desktop
 
 log "Main menu (Start)"
+# Menu helpers for the fc308fd contract (nav-mode Menu = Close window):
+# menu_open: open the root menu, highlight entry $1 (1-based), Enter.
+#   Mode-aware: the nav switch only happens from pointer mode; the pad
+#   ends in nav mode either way.
+# to_pointer: back to pointer mode the way a user does it - the labwc
+#   root menu's Power submenu -> "Pointer mode". Index-dependent: root
+#   entry 11 = Power, submenu entry 7 = Pointer mode (see menu.xml).
+function menu_open() {
+    pad tap BTN_START
+    [[ "$(vm cat /run/user/1000/rgos-padd.mode 2>/dev/null)" != nav ]] && pad tap BTN_MODE
+    for _ in $(seq 1 "${1}"); do pad tap BTN_DPAD_DOWN; done
+    pad tap BTN_EAST
+}
+function to_pointer() {
+    [[ "$(vm cat /run/user/1000/rgos-padd.mode 2>/dev/null)" != nav ]] && { pad tap BTN_MODE; sleep 0.4; }
+    pad tap BTN_START
+    for _ in $(seq 1 11); do pad tap BTN_DPAD_DOWN; done
+    pad tap BTN_EAST
+    for _ in $(seq 1 7); do pad tap BTN_DPAD_DOWN; done
+    pad tap BTN_EAST
+    sleep 0.5
+}
 gui rgos-padctl warp 200 200
 pad tap BTN_START
 shot 02-menu
@@ -212,9 +234,14 @@ check "Menu tap -> keys mode" mode_is nav
 pad tap BTN_DPAD_DOWN
 pad tap BTN_EAST
 check "Start -> Terminal opens foot" wait_for foot
+# fc308fd contract: Menu in nav mode = labwc Close (Super+Q), the exit
+# path for fullscreen apps. Pointer mode comes back via the power menu.
 pad tap BTN_MODE
-check "Menu tap -> back to pointer mode" mode_is mouse
-check "osk did not auto-open for foot (keyboard attached)" mode_is mouse
+check "Menu tap closes the focused foot (Super+Q)" not_running foot
+check "pad stays in nav mode after Menu=Close" mode_is nav
+check "osk did not auto-open for foot (keyboard attached)" mode_is nav
+to_pointer
+check "labwc menu's Pointer mode entry returns the pad" mode_is mouse
 shot 03-terminal
 
 log "Audio (PipeWire user services)"
@@ -227,12 +254,6 @@ check "volume keys path (wpctl default sink)" gui 'rgos-volume up && rgos-volume
 check "volume mute toggle" gui 'rgos-volume mute && wpctl get-volume @DEFAULT_AUDIO_SINK@ | grep -q MUTED'
 
 log "Apps (opened from the main menu, like a user would)"
-# Start, keys mode, down to the Nth entry, Enter, back to pointer mode
-function menu_open() {
-    pad tap BTN_START BTN_MODE
-    for _ in $(seq 1 "${1}"); do pad tap BTN_DPAD_DOWN; done
-    pad tap BTN_EAST BTN_MODE
-}
 menu_open 2
 check "Menu -> Files opens PCManFM" wait_for pcmanfm
 shot 04-files
@@ -249,6 +270,10 @@ after="$(vm "pgrep -c -x 'foot|pcmanfm|mousepad'")"
 check "Menu+B closes the focused window (${before} -> ${after})" test "${after}" -lt "${before}"
 
 log "Pointer"
+# The apps section leaves the pad in nav mode (menu_open enters it);
+# pointer mode is the power-menu entry away.
+to_pointer
+check "pointer mode before the pointer checks" mode_is mouse
 gui rgos-padctl warp 100 100
 pad hold BTN_DPAD_RIGHT 600
 shot 07-pointer-moved
@@ -305,7 +330,9 @@ check "oskd opens the keyboard when foot activates (no keyboard)" \
     vm 'for i in $(seq 1 10); do test -e /run/user/1000/oskd-test.show && exit 0; sleep 0.5; done; exit 1'
 check "oskd logged the decision" vm 'grep -q "window activated.*show" /tmp/oskd-test.log'
 vm 'kill "$(cat /tmp/oskd-test.pid)"; rm -f ~/.config/rgos/oskd.conf /tmp/oskd-test.pid'
-check "foot still focused, pad still in pointer mode" mode_is mouse
+check "oskd left the pad mode alone (nav after menu_open)" mode_is nav
+to_pointer
+check "back to pointer for the game-mode checks" mode_is mouse
 
 log "Game mode"
 pad combo BTN_MODE BTN_SELECT
@@ -532,7 +559,7 @@ log "Second SD card: clone, backup, /data/config"
 vm "sudo -n /usr/libexec/rgos/sdcard clone ${card}" >/dev/null 2>&1
 check "clone: four partitions on the second card" vm "lsblk -nlo NAME /dev/${card} | grep -c '${card}p[1-4]\$' | grep -q 4"
 check "clone: boot partition is RGOS-BOOT FAT" vm "test \"\$(blkid -o value -s LABEL /dev/${card}p1)\" = RGOS-BOOT && test \"\$(blkid -o value -s TYPE /dev/${card}p1)\" = vfat"
-check "clone: erofs root on p2" vm "test \"\$(blkid -o value -s TYPE /dev/${card}p2)\" = erofs"
+check "clone: erofs root on p2" vm "test \"\$(blkid -p -o value -s TYPE /dev/${card}p2)\" = erofs"
 check "clone: p4 resized to fill the card" vm "test \$(lsblk -nlo SIZE /dev/${card}p4) != \$(lsblk -nlo SIZE /dev/${card}p3)"
 check "clone: card recognised as an RGOS system card" vm 'grep -q "^system" /run/rgos/sdcard'
 # Backup/restore of personal data needs a usable card again
@@ -544,7 +571,7 @@ bak="$(vm 'ls /media/sdcard/rgos-data-*.tar.gz 2>/dev/null | tail -n1')"
 check "backup: archive lists /data/home and overlay upper" vm "tar -tzf '${bak}' | grep -q 'data/home/' && tar -tzf '${bak}' | grep -q 'overlay/upper/'"
 vm "sudo -n /usr/libexec/rgos/sdcard restore ${card} '${bak}'" >/dev/null 2>&1
 check "restore: data archive unpacks without error" vm "sudo -n tar -tzf '${bak}' >/dev/null 2>&1"
-check "/data/config overrides /etc/rgos (middle layer)" vm 'echo "warn_percent 42" | sudo -n tee /data/config/power.conf >/dev/null && test "$(rgos-power-conf warn_percent 10)" = 42 && sudo -n rm /data/config/power.conf'
+check "/data/config overrides /etc/rgos (middle layer)" vm 'echo "warn_percent=42" | sudo -n tee /data/config/power.conf >/dev/null && test "$(rgos-power-conf warn_percent 10)" = 42 && sudo -n rm /data/config/power.conf'
 check "config layer falls back to /etc/rgos" vm 'test "$(rgos-power-conf warn_percent 10)" = 10'
 
 log "Suspend (last: QEMU's display stays blank after s2idle)"

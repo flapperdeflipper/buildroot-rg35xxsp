@@ -154,16 +154,24 @@ format() {
 
 # Partition geometry of a disk, straight from its MBR (sectors):
 #   part_start <disk> <n>, part_size <disk> <n>
-# sfdisk pads the value into the field after "start=" / "size="
+# Partition names carry a "p" only when the disk name ends in a digit
+# (mmcblk0p1, loop0p1, but vda1, sda1). sfdisk pads the value into the
+# field after "start=" / "size=".
+part_name() {  # disk n -> partition kernel name
+    case "$1" in
+        *[0-9]) echo "$1p$2" ;;
+        *)      echo "$1$2" ;;
+    esac
+}
 part_start() {
-    sfdisk --dump "/dev/$1" 2>/dev/null | awk -v p="$2" '
-        index($0, "p" p " : ") {
+    sfdisk --dump "/dev/$1" 2>/dev/null | awk -v part="$(part_name "$1" "$2")" '
+        $1 == ("/dev/" part) {
             for (i = 1; i < NF; i++) if ($i == "start=") { gsub(/,/, "", $(i + 1)); print $(i + 1); exit }
         }'
 }
 part_size() {
-    sfdisk --dump "/dev/$1" 2>/dev/null | awk -v p="$2" '
-        index($0, "p" p " : ") {
+    sfdisk --dump "/dev/$1" 2>/dev/null | awk -v part="$(part_name "$1" "$2")" '
+        $1 == ("/dev/" part) {
             for (i = 1; i < NF; i++) if ($i == "size=") { gsub(/,/, "", $(i + 1)); print $(i + 1); exit }
         }'
 }
@@ -204,8 +212,8 @@ clone() {   # clone <disk>: this device's OS (no personal data) onto the card
     log "cloning /dev/${src} -> /dev/${disk} (boot chain, OS, empty data)"
     # Everything before p1 holds the MBR and the raw SPL at 8 KiB
     dd if="/dev/${src}" of="/dev/${disk}" bs=1M count=$(( s1 / 2048 )) conv=fsync status=none || exit 1
-    dd if="/dev/${src}p1" of="/dev/${disk}p1" conv=fsync status=none || exit 1
-    dd if="/dev/${src}p2" of="/dev/${disk}p2" conv=fsync status=none || exit 1
+    dd if="/dev/$(part_name "${src}" 1)" of="/dev/${disk}p1" conv=fsync status=none || exit 1
+    dd if="/dev/$(part_name "${src}" 2)" of="/dev/${disk}p2" conv=fsync status=none || exit 1
 
     # The copied table carries this card's grown p4; size it to the target
     # card instead (fresh p4 grows on the clone's first boot, like a flash)

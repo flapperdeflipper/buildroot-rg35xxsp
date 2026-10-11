@@ -56,6 +56,9 @@
     <item label="Game mode (release pad)">
       <action name="Execute" command="rgos-padctl mode passthrough" />
     </item>
+    <item label="Pointer mode (move pad)">
+      <action name="Execute" command="rgos-padctl mode mouse" />
+    </item>
     <item label="Restart desktop">
       <action name="Execute" command="sudo -n systemctl restart rgos-session.service" />
     </item>
