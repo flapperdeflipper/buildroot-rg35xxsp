@@ -1,0 +1,8 @@
+config BR2_PACKAGE_LIBRETRO_SNES9X
+	bool "libretro-snes9x"
+	help
+	  Libretro core: Super Nintendo (Snes9x). Balanced speed/accuracy,
+	  the default SNES choice. Note: Snes9x uses its own permissive
+	  non-commercial license, not GPL.
+
+	  https://docs.libretro.com/library/snes9x

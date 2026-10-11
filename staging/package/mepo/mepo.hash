@@ -1,0 +1,3 @@
+# Locally computed (staged draft, never built)
+# From Alpine's APKBUILD for mepo 1.3.4 (their mirror of the sr.ht archive)
+sha512  ef45de275e46c25ba4aedf6a27298c6b0ce5c751bd0680d37dca81baf86f059be05574d0655013ba405d45d958b1fef3d795050efa2db4fad6ca7f47aa577cb7  mepo-1.3.4.tar.gz

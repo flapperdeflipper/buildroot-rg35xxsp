@@ -1,0 +1,9 @@
+#!/bin/bash
+# Launch a game/emulator in games.slice with the Mali-G31 copy-image
+# override: the GPU has no hardware blitter, so the copy_image extensions
+# cause CPU untiling. Disabling them forces GPU blits (big win in
+# emulator-class workloads; from the ROCKNIX survey).
+set -euo pipefail
+exec systemd-run --user --slice=games.slice --same-dir \
+    --setenv=MESA_EXTENSION_OVERRIDE="-GL_OES_copy_image -GL_EXT_copy_image -GL_NV_copy_image -GL_ARB_copy_image" \
+    -- "$@"
