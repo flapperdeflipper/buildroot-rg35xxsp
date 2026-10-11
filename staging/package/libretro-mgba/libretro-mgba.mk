@@ -4,7 +4,7 @@
 #
 ################################################################################
 
-LIBRETRO_MGBA_VERSION = 7a12d6d4b9acb14c0ae62c9166b6a2f3d08007f6
+LIBRETRO_MGBA_VERSION = 517e518c48e351def04042dc159064dd098830a9
 LIBRETRO_MGBA_SITE = $(call github,libretro,mGBA,$(LIBRETRO_MGBA_VERSION))
 LIBRETRO_MGBA_LICENSE = MPL-2.0
 LIBRETRO_MGBA_LICENSE_FILES = LICENSE

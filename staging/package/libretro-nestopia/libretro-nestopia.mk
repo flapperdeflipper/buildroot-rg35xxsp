@@ -11,7 +11,7 @@ LIBRETRO_NESTOPIA_LICENSE_FILES = COPYING
 
 # UNTESTED (staged on wip/tooling): root Makefile builds the libretro core
 define LIBRETRO_NESTOPIA_BUILD_CMDS
-	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D) platform=unix
+	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D)/libretro -f Makefile platform=unix
 endef
 define LIBRETRO_NESTOPIA_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0644 $(@D)/nestopia_libretro.so \
