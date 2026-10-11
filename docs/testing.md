@@ -1,104 +1,134 @@
 # Testing and debugging
 
-## Flash and provision
+## Flash a card
 
 ```bash
-bin/flash.sh                                   # list SD cards
+bin/flash.sh                                    # list SD cards
 bin/flash.sh --key ~/.ssh/id_ed25519.pub --wifi "<ssid>" --country NL disk4
 ```
 
-The image carries no keys or credentials; the provisioning files on the
-boot partition are imported (and removed) at first boot. SSH is
-key-only. Put the card in **TF1**. First boot takes longer: it grows the
-data partition to fill the card and seeds `/home`.
+Images contain no keys or passwords. The boot partition carries your key
+and Wi-Fi settings, the device imports them on first boot and deletes
+them. SSH is key-only.
 
-A good first check from the Mac: `ssh user@rgos.local`, then
-`findmnt -t overlay,erofs,ext4` — `/` should be overlay, `/mnt/root-ro`
-erofs, `/data` ext4.
+Put the card in slot TF1. The first boot takes longer: the data partition
+grows to fill the card and `/home` gets seeded.
 
-## Verifying a build on the handheld
-
-Work through the areas in whatever order suits you; the details below
-are the things that have broken before, so they are worth a look after
-big changes.
-
-**Desktop and pointer.** D-pad tap = small precise step, hold = glide.
-A = click, B = right-click/Esc, L1/R1 = scroll. Start = main menu.
-
-**On-screen keyboard** (SELECT). The pointer starts on "g" and the first
-press types it; stepping lands on key centres within and between rows,
-including the symbols layer (the ⌨ key, bottom left). One press = one
-character. B closes it. Opening a terminal should bring the keyboard up
-by itself.
-
-**Power.** Short power-key press suspends (deep sleep: screen dark, green
-LED off, no audio pop with headphones on), any key wakes; check
-`journalctl -b | grep "PM: suspend entry"` says `(deep)` over SSH. Lid
-close/open suspend/wake. Idle: dim after 1 min, screen off after 3,
-suspend after 10 on battery; any button wakes. Menu + d-pad up/down =
-brightness; volume keys pop up the volume. Power menu (panel icon or
-Menu+Start): Suspend, Screen off, Game mode, Restart desktop, Reboot,
-Power off.
-
-**Radios and battery.** Wi-Fi on/off from the menu with a popup and
-automatic reconnect; survives a reboot. `iw dev wlan0 get power_save`
-should say `off`, also right after resume. Battery percentage, watts and
-time left in the panel ("+" while charging); red LED on while charging;
-one "Battery low" notification at 10 % per discharge; clean shutdown at
-3 %.
-
-**Apps.** YouTube (search -> list -> full screen playback, smooth at
-480p), Rockbox (browse `~/Music`, the controls above), NetSurf opens a
-real site, mpv plays a local file, Geany shows syntax colours, terminal
-tools work (`rg`, `fzf`, `tldr`...).
-
-**SD card (TF2).** exFAT card with files mounts with a notification and
-shows in Files and `~/SD`; Eject -> remove -> re-insert works; removing
-without ejecting gives the warning and remounts; Format (asks twice)
-produces a Mac-readable exFAT card with standard folders.
-
-**Keyboard, mouse, sound.** USB keyboard via an OTG adapter types and
-suppresses the on-screen keyboard; Bluetooth peripherals pair; headphones
-switch the output when plugged in.
-
-**Measurements over SSH** (a few minutes):
+Check that SSH answers:
 
 ```bash
-rgos-power status                       # battery, watts, profile; GPU line = Panfrost
-journalctl -b | grep -iE 'mesa|gl'      # no llvmpipe fallback
-systemd-analyze; systemd-analyze critical-chain   # boot time
-iw dev wlan0 get power_save             # off
+ssh user@rgos.local
+findmnt -t overlay,erofs,ext4
 ```
 
-`rgos-power log 10` records time-stamped power samples — running it for
-a while on battery-idle gives the idle-drain numbers.
+`/` should be overlay, `/mnt/root-ro` erofs, `/data` ext4.
 
-## QEMU (no hardware needed)
+## What to check on the device
+
+### Pointer and keyboard
+
+A short d-pad tap moves the pointer one small step. Holding it glides
+and speeds up. A clicks, B right-clicks, L1/R1 scroll.
+
+SELECT opens the on-screen keyboard. The pointer starts on "g" and the
+first press types it. Stepping stays on key centres within rows, between
+rows, and in the symbols layer (the key bottom left). One press types
+one character. B closes it. Opening a terminal brings the keyboard up on
+its own.
+
+### Power
+
+A short press of the power key suspends. The screen goes dark and the
+green LED turns off. Any key wakes it. Over SSH, check that it used deep
+sleep:
 
 ```bash
-bin/run-qemu --key ~/.ssh/id_ed25519.pub    # boot the test image in a window
-bin/qemu-pad                                # simulated handheld buttons
-bin/test-qemu                               # automated smoke test (~190 checks)
+journalctl -b | grep "PM: suspend entry"
 ```
 
-`bin/test-qemu` boots the image headless, drives it through the pad
-simulation, screenshots into `tmp/qemu-N/`, and cleans up after itself.
-Each run claims its own instance directory and SSH port; `--keep` leaves
-the VM running for manual poking, `bin/run-qemu --sdcard` attaches a
-second SD card image.
+Closing the lid suspends, opening it wakes. Left alone, the screen dims
+after a minute, turns off after three, and on battery the device
+suspends after ten. Menu plus d-pad up/down changes brightness. The
+volume keys show a volume popup.
 
-Two QEMU quirks to know: the display stays blank after an s2idle suspend
-(the suspend checks therefore run last), and very rarely the VM panics
-within the first tenth of a second during initramfs load — a QEMU/HVF
-artifact; run it again before investigating.
+The power menu (panel icon, or Menu plus Start) offers Suspend, Screen
+off, Game mode, Restart desktop, Reboot and Power off.
+
+### Radios and battery
+
+Toggle Wi-Fi from the main menu. A popup confirms each change and Wi-Fi
+reconnects. The state survives a reboot. Check that power saving stays
+off, including right after a resume:
+
+```bash
+iw dev wlan0 get power_save
+```
+
+The panel shows battery percentage, watts and time left, with a plus
+sign while charging. The red LED is on while charging. A "Battery low"
+notification appears once per discharge at 10 percent. At 3 percent the
+device shuts down cleanly.
+
+### Apps
+
+Try YouTube (search, pick, play, smooth at 480p), Rockbox (browse
+`~/Music`, controls in apps.md), NetSurf on a real site, mpv with a local
+file, Geany with a source file, and a few terminal tools.
+
+### Second SD card
+
+Insert an exFAT card with some files: a notification appears, the files
+show in Files and in `~/SD`. Eject, remove, reinsert. Removing without
+ejecting gives a warning and remounts the card. Format produces a
+Mac-readable exFAT card with standard folders.
+
+### Keyboard, mouse, sound
+
+A USB keyboard through an OTG adapter types and keeps the on-screen
+keyboard closed. Bluetooth devices pair from the menu. Headphones take
+over the output when plugged in.
+
+## Measurements over SSH
+
+```bash
+rgos-power status                            # battery, watts, profile
+journalctl -b | grep -iE 'mesa|gl'           # should show Panfrost, not llvmpipe
+systemd-analyze critical-chain               # boot time
+```
+
+For idle-drain numbers, run `rgos-power log 10` for a while on battery
+with the screen off, then read the log file it prints.
+
+## QEMU, without hardware
+
+```bash
+bin/run-qemu --key ~/.ssh/id_ed25519.pub     # boot the test image in a window
+bin/qemu-pad                                 # handheld buttons
+bin/test-qemu                                # automated checks, ~190 of them
+```
+
+`bin/test-qemu` boots the image headless, drives it through simulated
+buttons, takes screenshots into `tmp/qemu-N/` and cleans up. Each run
+claims its own instance directory and SSH port. Use `--keep` to leave
+the VM running, or `bin/run-qemu --sdcard` to attach a second card.
+
+Two quirks are normal in QEMU: the display stays blank after an s2idle
+suspend, and rarely the VM panics during initramfs load. The panic
+is a QEMU artifact; run it again.
 
 ## Reading logs from the device
 
-- After a boot, with the card in the Mac: `/Volumes/RGOS-BOOT/rgos-boot.log`.
-- The journal is persistent. Over SSH: `journalctl -b`. Without network,
-  with the card in the Mac:
-  `sudo /opt/homebrew/opt/e2fsprogs/sbin/debugfs -R "rdump /var/log/journal $HOME/rgos-journal" /dev/rdisk4s2`,
-  then `journalctl -D ~/rgos-journal -b -1` (from the build VM).
-- SSH once stopped answering after about an hour ("kex_exchange_identification:
-  Connection reset by peer"); if that recurs, the journal around that
-  time is where the answer lives (sshd messages, PerSourcePenalties).
+The journal is persistent. Over SSH, `journalctl -b` is enough. Without
+network, put the card in the Mac and read the boot log from
+`/Volumes/RGOS-BOOT/rgos-boot.log`. For the full journal, dump it from
+the data partition:
+
+```bash
+sudo /opt/homebrew/opt/e2fsprogs/sbin/debugfs -R "rdump /var/log/journal $HOME/rgos-journal" /dev/rdisk4s2
+journalctl -D ~/rgos-journal -b -1    # from the build VM
+```
+
+SSH once stopped answering after about an hour with
+"kex_exchange_identification: Connection reset by peer". If that happens
+again, the answer is in the journal from that time: look at the sshd
+messages around it.

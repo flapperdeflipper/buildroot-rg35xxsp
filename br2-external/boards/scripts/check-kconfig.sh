@@ -34,7 +34,18 @@ for sym in "${!want[@]}"; do
     val="${want[${sym}]}"
     got="$(grep -E "^${sym}=" "${config}" | cut -d= -f2-)"
     case "${val}" in
-        n) [[ -z "${got}" ]] && continue ;;
+        n)
+            # "is not set" wishes are advisory: Kconfig `select` by another
+            # enabled option legitimately pulls the symbol back in, and
+            # that is not a fragment-application failure.
+            if [[ -z "${got}" ]]; then
+                continue
+            elif [[ "${got}" == m || "${got}" == y ]]; then
+                printf 'check-kconfig: %s wanted off, kept %s (selected by a dependency)\n' \
+                    "${sym}" "${got}" >&2
+                continue
+            fi
+            ;;
         m) [[ "${got}" == m || "${got}" == y ]] && continue ;;
         *) [[ "${got}" == "${val}" ]] && continue ;;
     esac

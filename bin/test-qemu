@@ -112,15 +112,36 @@ trap finish EXIT
 # ... and a blank second SD card (bin/qemu-sdcard pulls / inserts it)
 SDIMG="${STATE}/sdcard.img"
 rm -f "${SDIMG}" && mkdir -p "${STATE}" && truncate -s 256M "${SDIMG}"
-RGOS_WIFI_PASSWORD="test pass 123" "${BASEDIR}/bin/run-qemu" --fresh --headless \
-    --key "${BASEDIR}/.ssh/builder.pub" --wifi "Test Net" --country NL --sdcard "${SDIMG}" || exit 1
 
+function start_vm() {
+    RGOS_WIFI_PASSWORD="test pass 123" "${BASEDIR}/bin/run-qemu" --fresh --headless \
+        --key "${BASEDIR}/.ssh/builder.pub" --wifi "Test Net" --country NL --sdcard "${SDIMG}" || exit 1
+}
+
+function wait_ssh() {
+    for _ in $(seq 1 90); do
+        vm true 2>/dev/null && return 0
+        sleep 2
+    done
+    return 1
+}
+
+start_vm
 log "Waiting for SSH (first boot grows the disk)..."
-for _ in $(seq 1 90); do
-    vm true 2>/dev/null && break
-    sleep 2
-done
-vm true || { log_err "No SSH after 180s; see ${STATE}/serial.log"; tail -30 "${STATE}/serial.log"; exit 1; }
+if ! wait_ssh; then
+    # QEMU/HVF can rarely load a truncated initrd: init dies before the
+    # first echo (loader error + "Attempted to kill init" in the first
+    # fraction of a second). Same image boots fine on retry.
+    if grep -q "error while loading shared libraries" "${STATE}/serial.log" 2>/dev/null \
+       && grep -q "Attempted to kill init" "${STATE}/serial.log" 2>/dev/null; then
+        log "Early boot panic (known QEMU/HVF initrd flake): retrying the boot once"
+        stop_vm
+        start_vm
+        wait_ssh || { log_err "No SSH after 180s (retried once); see ${STATE}/serial.log"; tail -30 "${STATE}/serial.log"; exit 1; }
+    else
+        log_err "No SSH after 180s; see ${STATE}/serial.log"; tail -30 "${STATE}/serial.log"; exit 1
+    fi
+fi
 
 power_conf
 
@@ -420,6 +441,15 @@ fi
 check "YouTube app in the menu" vm 'test -f /usr/share/applications/rgos-youtube.desktop'
 check "Geany in the menu" vm 'test -f /usr/share/applications/geany.desktop'
 check "Srain in the menu" vm 'test -f /usr/share/applications/im.srain.Srain.desktop'
+
+# Syncthing ships disabled by default; enabling is an explicit user action
+check "syncthing binary runs (${SYNCTHING_VERSION:-v2})" vm 'syncthing --version 2>/dev/null | head -n1 | grep -q "syncthing v2"'
+check "syncthing user unit installed" vm 'test -f /usr/lib/systemd/user/syncthing.service'
+check "syncthing disabled by default (no wants symlinks)" vm 'test ! -e ~/.config/systemd/user/default.target.wants/syncthing.service && test ! -e /etc/systemd/user/default.target.wants/syncthing.service'
+check "syncthing enables on request" vm 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus systemctl --user enable --now syncthing.service'
+check "syncthing runs once enabled" wait_for "syncthing" 20
+vm 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus systemctl --user disable --now syncthing.service'
+check "syncthing stops + stays disabled after disable --now" vm 'test ! -e ~/.config/systemd/user/default.target.wants/syncthing.service && ! pgrep -x syncthing'
 
 log "Second SD card"
 card="$(vm "lsblk -dno NAME | grep '^mmcblk' | head -n1")"

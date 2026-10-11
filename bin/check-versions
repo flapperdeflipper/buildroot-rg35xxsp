@@ -7,10 +7,11 @@ every third-party package in br2-external/package/.
                                     version in <pkg>.mk and the tarball hash
                                     in <pkg>.hash (downloads the tarball)
 
-Needs the GitHub CLI (`gh`, logged in) for the GitHub API. Commit pins
-(Rockbox, ROCKNIX) and Buildroot are reported, never rewritten: bump them
-by hand and rebuild. Vendored Go/Rust packages get a new version but their
-hash comes from the first build (~/downloads/<pkg>/ on the build VM).
+Queries the public GitHub/Codeberg/Xfce APIs (unauthenticated; ~25 calls
+per run, well under GitHub's 60/h). Commit pins (Rockbox, ROCKNIX) and
+Buildroot are reported, never rewritten: bump them by hand and rebuild.
+Vendored Go/Rust packages get a new version but their hash comes from
+the first build (~/downloads/<pkg>/ on the build VM).
 After --update: bin/buildbox.sh make <board> <pkg>-dirclean, rebuild, test.
 """
 
@@ -42,14 +43,6 @@ def run(*cmd):
     return subprocess.run(cmd, capture_output=True, text=True, check=False).stdout.strip()
 
 
-def gh(path):
-    out = run("gh", "api", path)
-    try:
-        return json.loads(out)
-    except ValueError:
-        return None
-
-
 def http_json(url):
     try:
         with urllib.request.urlopen(url, timeout=20) as r:
@@ -58,11 +51,18 @@ def http_json(url):
         return None
 
 
+def api(path):
+    # Public REST endpoint. Deliberately not the gh CLI: a stale
+    # GITHUB_TOKEN makes gh return error JSON that parses fine, which
+    # silently reads as "no tag found".
+    return http_json(f"https://api.github.com/{path}")
+
+
 def github_latest(repo):
-    rel = gh(f"repos/{repo}/releases/latest")
+    rel = api(f"repos/{repo}/releases/latest")
     if isinstance(rel, dict) and rel.get("tag_name"):
         return rel["tag_name"]
-    tags = gh(f"repos/{repo}/tags")
+    tags = api(f"repos/{repo}/tags")
     return tags[0]["name"] if isinstance(tags, list) and tags else None
 
 
@@ -70,7 +70,7 @@ def latest(name, site):
     kind, ref = UPSTREAM.get(name, (None, None))
     if kind is None:
         m = re.search(r"call github,([^,]+),([^,)]+)", site) or \
-            re.search(r"github\.com/([^/]+)/([^/]+)/releases", site)
+            re.search(r"github\.com/([^/]+)/([^/]+)/(?:releases|archive)", site)
         if not m:
             return None, "unknown upstream"
         kind, ref = "github", f"{m.group(1)}/{m.group(2)}"
@@ -157,9 +157,6 @@ def main():
     do_update = "--update" in sys.argv[1:]
     if any(a in ("-h", "--help") for a in sys.argv[1:]):
         sys.exit(__doc__)
-    if not run("gh", "--version"):
-        sys.exit("check-versions: needs the GitHub CLI (gh)")
-
     rows, bumps = [], []
     # Buildroot
     pinned = re.search(r'BUILDROOT_VERSION="([^"]+)"', open(os.path.join(BASE, "bin/lib/versions.sh")).read()).group(1)
@@ -170,7 +167,7 @@ def main():
     # ROCKNIX commit
     ext = open(os.path.join(BASE, "br2-external/external.mk")).read()
     commit = re.search(r"RGOS_ROCKNIX_COMMIT\s*=\s*(\w+)", ext).group(1)
-    head = (gh("repos/ROCKNIX/distribution/commits/HEAD") or {}).get("sha", "?")
+    head = (api("repos/ROCKNIX/distribution/commits/HEAD") or {}).get("sha", "?")
     rows.append(("rocknix (commit)", commit[:12], head[:12], "same" if head == commit else "manual"))
 
     for name in sorted(os.listdir(PKG_DIR)):
@@ -184,7 +181,7 @@ def main():
         site = var.get(f"{prefix}_SITE", "")
         if re.fullmatch(r"[0-9a-f]{40}", pinned):
             m = re.search(r"call github,([^,]+),([^,)]+)", site)
-            head = (gh(f"repos/{m.group(1)}/{m.group(2)}/commits/HEAD") or {}).get("sha", "?") if m else "?"
+            head = (api(f"repos/{m.group(1)}/{m.group(2)}/commits/HEAD") or {}).get("sha", "?") if m else "?"
             rows.append((name + " (commit)", pinned[:12], head[:12], "same" if head == pinned else "manual"))
             continue
         tag, note = latest(name, expand(site, var))

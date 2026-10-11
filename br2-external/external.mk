@@ -88,6 +88,24 @@ endef
 LINUX_POST_PATCH_HOOKS += RGOS_LINUX_APPLY_ROCKNIX
 endif
 
+# Embedded initramfs: the device's U-Boot extlinux boot does not reliably
+# deliver the INITRD line (observed: kernel booted without it, no /init,
+# degraded read-only boot, black screen). Embedding the cpio in the kernel
+# image removes the bootloader from that path. CONFIG_INITRAMFS_SOURCE (in
+# boards/common/linux.fragment) points at this file, relative to the
+# kernel tree; an external initrd, when loaded, is merged on top.
+LINUX_DEPENDENCIES += busybox
+define RGOS_LINUX_BUILD_INITRAMFS
+	if [ -x "$(PER_PACKAGE_DIR)/busybox/target/bin/busybox" ]; then \
+		bbroot="$(PER_PACKAGE_DIR)/busybox/target"; \
+	else \
+		bbroot="$(TARGET_DIR)"; \
+	fi; \
+	$(BR2_EXTERNAL_RGOS_PATH)/boards/scripts/build-initramfs.sh \
+		"$$bbroot" "$(@D)/rgos-initramfs.cpio.gz" "$(HOST_DIR)"
+endef
+LINUX_PRE_BUILD_HOOKS += RGOS_LINUX_BUILD_INITRAMFS
+
 # Fail the build when kernel fragment options didn't make it into .config
 define RGOS_LINUX_CHECK_FRAGMENTS
 	$(BR2_EXTERNAL_RGOS_PATH)/boards/scripts/check-kconfig.sh $(@D)/.config \

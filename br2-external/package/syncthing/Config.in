@@ -1,0 +1,9 @@
+config BR2_PACKAGE_SYNCTHING
+	bool "syncthing"
+	depends on BR2_PACKAGE_HOST_GO_TARGET_ARCH_SUPPORTS
+	help
+	  Continuous file synchronization between devices. Installs a session
+	  user unit that is disabled by default; enable on request with
+	  "systemctl --user enable --now syncthing".
+
+	  https://syncthing.net

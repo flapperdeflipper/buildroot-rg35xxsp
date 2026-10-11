@@ -37,3 +37,7 @@ BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_RGOS_PATH)/rootfs_overlay $(BR2_EXTERNAL_RGOS
 BR2_PACKAGE_WEBKITGTK=y
 BR2_PACKAGE_WEBKITGTK_SANDBOX=y
 BR2_PACKAGE_RGOS_WEB=y
+
+# File sync as a session user service (same delivery planned for the
+# device; promoted from wip/tooling staging).
+BR2_PACKAGE_SYNCTHING=y

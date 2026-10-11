@@ -31,7 +31,12 @@ CONFIG_PSI=y
 
 # Filesystems
 CONFIG_EXT4_FS=y
-# Read-only root: erofs (p2) + overlayfs (upper on p3) + initramfs boot
+# Read-only root: erofs (p2) + overlayfs (upper on p3) + initramfs boot.
+# The initramfs is embedded (U-Boot does not reliably load an external
+# INITRD on this board); the file is written into the kernel tree by the
+# RGOS_LINUX_BUILD_INITRAMFS pre-build hook (external.mk).
+CONFIG_BLK_DEV_INITRD=y
+CONFIG_INITRAMFS_SOURCE="rgos-initramfs.cpio.gz"
 CONFIG_EROFS_FS=y
 CONFIG_EROFS_FS_ZIP=y
 CONFIG_OVERLAY_FS=y

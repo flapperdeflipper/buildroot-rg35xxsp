@@ -42,6 +42,7 @@ menu "RGOS"
 	source "$BR2_EXTERNAL_RGOS_PATH/package/glow/Config.in"
 	source "$BR2_EXTERNAL_RGOS_PATH/package/progress/Config.in"
 	source "$BR2_EXTERNAL_RGOS_PATH/package/prettyping/Config.in"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/syncthing/Config.in"
 	source "$BR2_EXTERNAL_RGOS_PATH/package/rockbox/Config.in"
 	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-web/Config.in"
 endmenu
