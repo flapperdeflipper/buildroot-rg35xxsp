@@ -23,6 +23,7 @@ RETROARCH_CONF_OPTS = \
 	--enable-egl \
 	--enable-opengles \
 	--enable-opengl \
+	--disable-opengl1 \
 	--enable-alsa \
 	--enable-freetype \
 	--enable-udev \
