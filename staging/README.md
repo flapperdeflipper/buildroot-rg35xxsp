@@ -1,27 +1,36 @@
 # WIP tooling branch
 
-Staging area for new packages that are written but not yet build-tested.
-Nothing here is wired into the build; the main branch stays clean until a
-package survives a real build and the QEMU test suite.
+Staging area for new packages and features that are written but not yet
+build-tested. Nothing here is wired into the build; the main branch stays
+clean until an item survives a real build and the QEMU test suite.
 
-## Promoting a package to the tree
+A testing pipeline will merge these one by one later.
+
+## Promoting an item to the tree
 
 1. Take a free build-VM slot (check the channel first).
-2. Copy `staging/package/<name>/` to `br2-external/package/<name>/`.
-3. Add `source "$BR2_EXTERNAL_RGOS_PATH/package/<name>/Config.in"` to
-   `br2-external/Config.in` in the right menu block.
-4. Enable it in `configs/rgos_qemu_arm64_defconfig`, then
-   `bin/buildbox.sh check qemu-arm64`.
-5. Build, run `bin/test-qemu`, add a check for the new package.
-6. If it belongs on the device too: enable in `rgos_common_defconfig`,
+2. For packages: copy `staging/package/<name>/` to
+   `br2-external/package/<name>/`, add the Config.in source line to
+   `br2-external/Config.in`, enable in `configs/rgos_qemu_arm64_defconfig`.
+   For system files: see the NOTES.md next to them for target paths.
+3. `bin/buildbox.sh check qemu-arm64`, build, `bin/test-qemu`, add a
+   check for the new item.
+4. If it belongs on the device too: enable in `rgos_common_defconfig`,
    build rg35xxsp, note it in the device checklist.
-7. Merge this branch (or just move the files onto the main tree; the
-   branch history is disposable).
+5. Merge this branch (or move the files onto the main tree; the branch
+   history is disposable).
 
 ## Queue
 
-- [x] syncthing 2.1.6 (see staging/package/syncthing; untested)
-- [ ] next candidates, roughly in value order:
-      a small TUI for the SDR tools, a battery-percentage daemon
-      (batteryplus) if the AXP717 readout drifts, RetroArch (large,
-      emulators phase)
+- [x] syncthing 2.1.6 (package/syncthing; UNTESTED notes in the .mk)
+- [x] retroarch 1.22.2 + first cores: gambatte (GB/GBC), mGBA (GBA),
+      nestopia (NES), snes9x (SNES), Genesis Plus GX (MD/SMS/GG) — all
+      commit/tag pinned + hashed, never built
+- [x] game-mode system pieces (system/): games.slice, background.slice,
+      system.slice memory floor, rgos-game launcher with the Mali-G31
+      copy-image Mesa override — see system/NOTES.md
+- [x] USB gadget mode (gadget/): NCM + ACM configfs script and unit —
+      see gadget/NOTES.md for the kernel lines still needed
+- [ ] candidates, not started: SDR TUI frontend, batteryplus (only if
+      the AXP717 percentage drifts), charge-only-boot U-Boot patch port
+      (ROCKNIX 0002-sunxi-axp717-charge-only-boot onto our 2026.07 base)

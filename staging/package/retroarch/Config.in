@@ -1,0 +1,11 @@
+config BR2_PACKAGE_RETROARCH
+	bool "retroarch"
+	select BR2_PACKAGE_LIBSDL2
+	select BR2_PACKAGE_ALSA_LIB
+	select BR2_PACKAGE_FREETYPE
+	help
+	  Emulator frontend (libretro). Runs cores for Game Boy, GBA, NES,
+	  SNES, Mega Drive and more; driven from the handheld buttons via
+	  evdev (the rgos-padd passthrough mode hands the pad over).
+
+	  https://www.retroarch.com
