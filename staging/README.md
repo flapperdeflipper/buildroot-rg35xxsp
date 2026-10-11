@@ -22,18 +22,18 @@ A testing pipeline will merge these one by one later.
 
 ## Queue
 
-- [x] syncthing 2.1.6 (package/syncthing; UNTESTED notes in the .mk)
-- [x] retroarch 1.22.2 + first cores: gambatte (GB/GBC), mGBA (GBA),
-      nestopia (NES), snes9x (SNES), Genesis Plus GX (MD/SMS/GG) — all
-      commit/tag pinned + hashed, never built
-- [x] game-mode system pieces (system/): games.slice, background.slice,
-      system.slice memory floor, rgos-game launcher with the Mali-G31
-      copy-image Mesa override — see system/NOTES.md
-- [x] USB gadget mode (gadget/): NCM + ACM configfs script and unit —
+- [x] syncthing 2.1.6 — **promoted + QEMU-validated 2026-10-11** (stamped,
+      go2 hashed, GUI assets generated; disabled by default; lives in the
+      main tree now, this copy is stale)
+- [x] retroarch 1.22.2 + first cores (gambatte, mGBA @ 517e518 pre-CMake,
+      nestopia, snes9x, Genesis-Plus-GX) — **promoted + QEMU-validated
+      2026-10-11**; main tree has the build fixes (qb configure, underscore
+      options, PKG_CONF_PATH, GL1 off, hash file naming, subdir Makefiles)
+- [x] game-mode system pieces — promoted as package rgos-game (launcher
+      with systemd-run --wait + pad passthrough, user slices, system.slice
+      memory floor, RA defaults config); QEMU-validated
+- [ ] USB gadget mode (gadget/): NCM + ACM configfs script and unit —
       see gadget/NOTES.md for the kernel lines still needed
-- [x] mepo 1.3.4 + host-zig 0.14.1 (package/mepo, package/host-zig):
-      OSM map viewer, Zig+SDL2, online tiles + offline region download,
-      rgos-mepo nav launcher — UNTESTED notes in mepo/NOTES.md
 - [ ] candidates, not started: SDR TUI frontend, batteryplus (only if
       the AXP717 percentage drifts), charge-only-boot U-Boot patch port
       (ROCKNIX 0002-sunxi-axp717-charge-only-boot onto our 2026.07 base)
