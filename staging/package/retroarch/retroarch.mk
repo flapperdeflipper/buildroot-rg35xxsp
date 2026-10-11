@@ -45,8 +45,6 @@ RETROARCH_CONF_OPTS = \
 	--disable-wayland \
 	--disable-vulkan \
 	--disable-kms \
-	--disable-drm \
-	--disable-gbm \
 	--disable-pulse \
 	--disable-pipewire \
 	--disable-jack \
