@@ -34,7 +34,7 @@ RETROARCH_CONF_OPTS = \
 	--enable-rgui \
 	--enable-ozone \
 	--enable-xmb \
-	--enable-gfx-widgets \
+	--enable-gfx_widgets \
 	--enable-libretrodb \
 	--enable-networking \
 	--enable-ssl \
@@ -61,9 +61,9 @@ RETROARCH_CONF_OPTS = \
 	--disable-sixel \
 	--disable-osmesa \
 	--disable-discord \
-	--disable-online-updater \
-	--disable-update-assets \
-	--disable-update-cores \
+	--disable-online_updater \
+	--disable-update_assets \
+	--disable-update_cores \
 	--disable-shaderpipeline \
 	--disable-slang \
 	--disable-angle
