@@ -1,2 +1,7 @@
 # Boot straight into extlinux.conf on the boot partition
 CONFIG_BOOTDELAY=0
+
+# Charge-only boot: USB into a powered-off device charges instead of
+# booting (AXP717 port on the sunxi AXP_DISABLE_BOOT_ON_POWERON symbol;
+# a button press still boots). Patch: uboot-patches/. Device test: 4.7.
+CONFIG_AXP_DISABLE_BOOT_ON_POWERON=y
