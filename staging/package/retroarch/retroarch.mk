@@ -9,7 +9,7 @@ RETROARCH_SITE = $(call github,libretro,RetroArch,v$(RETROARCH_VERSION))
 RETROARCH_LICENSE = GPL-3.0
 RETROARCH_LICENSE_FILES = COPYING
 
-RETROARCH_DEPENDENCIES = libsdl2 alsa-lib freetype mesa3d
+RETROARCH_DEPENDENCIES = sdl2 alsa-lib freetype mesa3d
 
 # RetroArch 1.22 has no meson build; the qb system (./configure + Makefile)
 # takes --enable-X/--disable-X for every HAVE_X option. Video context is
