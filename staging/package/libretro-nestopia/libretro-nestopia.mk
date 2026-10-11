@@ -14,7 +14,7 @@ define LIBRETRO_NESTOPIA_BUILD_CMDS
 	$(TARGET_MAKE_ENV) $(MAKE) -C $(@D)/libretro -f Makefile platform=unix
 endef
 define LIBRETRO_NESTOPIA_INSTALL_TARGET_CMDS
-	$(INSTALL) -D -m 0644 $(@D)/nestopia_libretro.so \
+	$(INSTALL) -D -m 0644 $(@D)/libretro/nestopia_libretro.so \
 		$(TARGET_DIR)/usr/lib/libretro/nestopia_libretro.so
 endef
 
