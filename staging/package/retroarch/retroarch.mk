@@ -68,7 +68,7 @@ RETROARCH_CONF_OPTS = \
 
 define RETROARCH_CONFIGURE_CMDS
 	cd "$(@D)" && $(TARGET_CONFIGURE_OPTS) $(TARGET_MAKE_ENV) \
-		PKG_CONF_PATH="$(PKG_CONFIG)" \
+		PKG_CONF_PATH="$(HOST_DIR)/bin/pkg-config" \
 		./configure $(RETROARCH_CONF_OPTS)
 endef
 
