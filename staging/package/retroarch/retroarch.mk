@@ -9,33 +9,80 @@ RETROARCH_SITE = $(call github,libretro,RetroArch,v$(RETROARCH_VERSION))
 RETROARCH_LICENSE = GPL-3.0
 RETROARCH_LICENSE_FILES = COPYING
 
-RETROARCH_DEPENDENCIES = libsdl2 alsa-lib freetype
+RETROARCH_DEPENDENCIES = libsdl2 alsa-lib freetype mesa3d
 
-# UNTESTED (staged on wip/tooling). Decisions to confirm at build time:
-# - Video context: SDL2 (simple, works under Wayland/labwc like Rockbox).
-#   If the SDL GL context underperforms, try -Dsdl2=disabled -Dwayland=enabled
-#   with the native wayland video context (libwayland-client + EGL).
-# - GLES via Panfrost: opengles2 (mesa gives GLES3, RA picks GLES2/GLES3).
-# - Option names follow RetroArch's meson_options.txt as of 1.22; adjust
-#   whatever meson rejects.
+# RetroArch 1.22 has no meson build; the qb system (./configure + Makefile)
+# takes --enable-X/--disable-X for every HAVE_X option. Video context is
+# SDL2 (runs under labwc/Wayland like Rockbox does); GL context comes from
+# SDL. Audio: alsa driver enabled, config default is the sdl2 driver (SDL
+# routes to pipewire-pulse like mpv does).
 RETROARCH_CONF_OPTS = \
-	-Dbuild=release \
-	-Dsdl2=enabled \
-	-Degl=enabled \
-	-Dopengles2=enabled \
-	-Dwayland=enabled \
-	-Dalsa=enabled \
-	-Dfreetype=enabled \
-	-Dx11=disabled \
-	-Dvulkan=disabled \
-	-Ddrm=disabled \
-	-Djack=disabled \
-	-Dpulse=disabled \
-	-Dcoreaudio=disabled \
-	-Dshaderc=disabled
+	--prefix=/usr \
+	--enable-sdl2 \
+	--disable-sdl \
+	--enable-egl \
+	--enable-opengles \
+	--enable-opengl \
+	--enable-alsa \
+	--enable-freetype \
+	--enable-udev \
+	--enable-zlib \
+	--enable-threads \
+	--enable-dynamic \
+	--enable-dylib \
+	--enable-configfile \
+	--enable-rgui \
+	--enable-ozone \
+	--enable-xmb \
+	--enable-gfx-widgets \
+	--enable-libretrodb \
+	--enable-networking \
+	--enable-ssl \
+	--enable-cheats \
+	--enable-rewind \
+	--enable-runahead \
+	--disable-x11 \
+	--disable-wayland \
+	--disable-vulkan \
+	--disable-kms \
+	--disable-drm \
+	--disable-gbm \
+	--disable-pulse \
+	--disable-pipewire \
+	--disable-jack \
+	--disable-oss \
+	--disable-mpv \
+	--disable-ffmpeg \
+	--disable-lua \
+	--disable-bluetooth \
+	--disable-hid \
+	--disable-libusb \
+	--disable-caca \
+	--disable-sixel \
+	--disable-osmesa \
+	--disable-discord \
+	--disable-online-updater \
+	--disable-update-assets \
+	--disable-update-cores \
+	--disable-shaderpipeline \
+	--disable-slang \
+	--disable-angle
+
+define RETROARCH_CONFIGURE_CMDS
+	cd "$(@D)" && $(TARGET_CONFIGURE_OPTS) $(TARGET_MAKE_ENV) \
+		./configure $(RETROARCH_CONF_OPTS)
+endef
+
+define RETROARCH_BUILD_CMDS
+	$(TARGET_MAKE_ENV) $(MAKE) -C "$(@D)"
+endef
+
+define RETROARCH_INSTALL_TARGET_CMDS
+	$(TARGET_MAKE_ENV) $(MAKE) -C "$(@D)" DESTDIR="$(TARGET_DIR)" install
+endef
 
 # Cores live in their own packages (libretro-*), installed into
 # /usr/lib/libretro. retroarch.cfg needs libretro_directory=/usr/lib/libretro;
 # see staging/system/NOTES.md for the intended device config.
 
-$(eval $(meson-package))
+$(eval $(generic-package))
