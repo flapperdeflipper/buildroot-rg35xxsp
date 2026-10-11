@@ -112,15 +112,36 @@ trap finish EXIT
 # ... and a blank second SD card (bin/qemu-sdcard pulls / inserts it)
 SDIMG="${STATE}/sdcard.img"
 rm -f "${SDIMG}" && mkdir -p "${STATE}" && truncate -s 256M "${SDIMG}"
-RGOS_WIFI_PASSWORD="test pass 123" "${BASEDIR}/bin/run-qemu" --fresh --headless \
-    --key "${BASEDIR}/.ssh/builder.pub" --wifi "Test Net" --country NL --sdcard "${SDIMG}" || exit 1
 
+function start_vm() {
+    RGOS_WIFI_PASSWORD="test pass 123" "${BASEDIR}/bin/run-qemu" --fresh --headless \
+        --key "${BASEDIR}/.ssh/builder.pub" --wifi "Test Net" --country NL --sdcard "${SDIMG}" || exit 1
+}
+
+function wait_ssh() {
+    for _ in $(seq 1 90); do
+        vm true 2>/dev/null && return 0
+        sleep 2
+    done
+    return 1
+}
+
+start_vm
 log "Waiting for SSH (first boot grows the disk)..."
-for _ in $(seq 1 90); do
-    vm true 2>/dev/null && break
-    sleep 2
-done
-vm true || { log_err "No SSH after 180s; see ${STATE}/serial.log"; tail -30 "${STATE}/serial.log"; exit 1; }
+if ! wait_ssh; then
+    # QEMU/HVF can rarely load a truncated initrd: init dies before the
+    # first echo (loader error + "Attempted to kill init" in the first
+    # fraction of a second). Same image boots fine on retry.
+    if grep -q "error while loading shared libraries" "${STATE}/serial.log" 2>/dev/null \
+       && grep -q "Attempted to kill init" "${STATE}/serial.log" 2>/dev/null; then
+        log "Early boot panic (known QEMU/HVF initrd flake): retrying the boot once"
+        stop_vm
+        start_vm
+        wait_ssh || { log_err "No SSH after 180s (retried once); see ${STATE}/serial.log"; tail -30 "${STATE}/serial.log"; exit 1; }
+    else
+        log_err "No SSH after 180s; see ${STATE}/serial.log"; tail -30 "${STATE}/serial.log"; exit 1
+    fi
+fi
 
 power_conf
 
@@ -332,7 +353,10 @@ check "battery guard running" vm 'systemctl is-active rgos-battery-guard.service
 # Low-battery warning: mock a discharging battery, run single guard passes
 vm 'mkdir -p /tmp/psu/bat0 && echo Battery > /tmp/psu/bat0/type && echo 9 > /tmp/psu/bat0/capacity && echo Discharging > /tmp/psu/bat0/status && sudo -n rm -f /run/rgos-battery-warned'
 vm 'sudo -n /usr/libexec/rgos/battery-guard --once --psu-dir /tmp/psu'
-check "low battery -> warning notification" gui 'makoctl list | grep -q "Battery low"'
+# mako registration is async; retry briefly before calling it a fail
+lowbat_ok=0
+for _ in $(seq 1 10); do gui 'makoctl list | grep -q "Battery low"' && lowbat_ok=1 && break; sleep 0.5; done
+check "low battery -> warning notification" test "${lowbat_ok}" = 1
 shot 11-battery-notification
 gui 'makoctl dismiss -a'
 vm 'sudo -n /usr/libexec/rgos/battery-guard --once --psu-dir /tmp/psu'
@@ -420,6 +444,48 @@ fi
 check "YouTube app in the menu" vm 'test -f /usr/share/applications/rgos-youtube.desktop'
 check "Geany in the menu" vm 'test -f /usr/share/applications/geany.desktop'
 check "Srain in the menu" vm 'test -f /usr/share/applications/im.srain.Srain.desktop'
+
+# Syncthing ships disabled by default; enabling is an explicit user action
+check "syncthing binary runs (stamped v${SYNCTHING_VERSION:-2.1.6})" vm 'syncthing --version 2>/dev/null | head -n1 | grep -q "syncthing v2\.1\.6"'
+check "syncthing user unit installed" vm 'test -f /usr/lib/systemd/user/syncthing.service'
+check "syncthing disabled by default (no wants symlinks)" vm 'test ! -e ~/.config/systemd/user/default.target.wants/syncthing.service && test ! -e /etc/systemd/user/default.target.wants/syncthing.service'
+check "syncthing enables on request" vm 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus systemctl --user enable --now syncthing.service'
+check "syncthing runs once enabled" wait_for "syncthing" 20
+vm 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus systemctl --user disable --now syncthing.service'
+check "syncthing stops + stays disabled after disable --now" vm 'test ! -e ~/.config/systemd/user/default.target.wants/syncthing.service && ! pgrep -x syncthing'
+
+log "Emulators"
+check "retroarch binary runs" vm 'retroarch --version 2>/dev/null | grep -q "^RetroArch"'
+for core in gambatte mgba nestopia snes9x genesis_plus_gx; do
+    check "core installed (${core})" vm "ls /usr/lib/libretro/${core}_libretro.so"
+done
+check "rgos-game launcher installed" vm 'test -x /usr/bin/rgos-game'
+check "games + background slices (user units)" vm 'test -f /usr/lib/systemd/user/games.slice && test -f /usr/lib/systemd/user/background.slice'
+check "system.slice memory floor drop-in" vm 'test -f /etc/systemd/system/system.slice.d/50-rgos-memory.conf'
+check "retroarch defaults config shipped" vm 'test -f /etc/rgos/retroarch.cfg.defaults'
+check "RetroArch in the menu" vm 'test -f /usr/share/applications/retroarch.desktop'
+before_ra="$(vm cat /run/user/1000/rgos-padd.mode)"
+gui "setsid -f rgos-game retroarch >/dev/null 2>&1"
+check "retroarch starts via rgos-game" wait_for retroarch 30
+check "pad in passthrough mode while running" mode_is passthrough
+check "games.slice active while running" vm 'DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus systemctl --user is-active games.slice'
+check "Mesa copy-image override in the game env" vm 'tr "\0" "\n" </proc/$(pgrep -x retroarch)/environ | grep -q "MESA_EXTENSION_OVERRIDE=-GL_OES_copy_image"'
+sleep 5
+check "retroarch still running after 5 s (menu)" running retroarch
+shot emu-retroarch-menu
+vm 'pkill -x retroarch'
+for _ in $(seq 1 10); do mode_is "${before_ra}" && break; sleep 0.5; done
+# Core + content run: hand-crafted public-domain test ROM (valid header,
+# no MBC, infinite loop), built on the guest from zeros + header bytes
+vm 'rom=/tmp/rgos-test.gb; head -c 32768 /dev/zero >"$rom"; printf "\x00\xc3\x50\x01" | dd of="$rom" bs=1 seek=256 conv=notrunc 2>/dev/null; printf "RGOSTEST" | dd of="$rom" bs=1 seek=308 conv=notrunc 2>/dev/null; printf "\x33" | dd of="$rom" bs=1 seek=331 conv=notrunc 2>/dev/null; printf "\x38" | dd of="$rom" bs=1 seek=333 conv=notrunc 2>/dev/null; printf "\x03\xfb" | dd of="$rom" bs=1 seek=334 conv=notrunc 2>/dev/null; printf "\x76\x18\xfe" | dd of="$rom" bs=1 seek=336 conv=notrunc 2>/dev/null'
+gui "setsid -f rgos-game retroarch -L /usr/lib/libretro/gambatte_libretro.so /tmp/rgos-test.gb >/dev/null 2>&1"
+check "core run starts (gambatte + test ROM)" wait_for retroarch 30
+sleep 5
+check "core run still alive after 5 s" running retroarch
+shot emu-retroarch-gambatte
+vm 'pkill -x retroarch'
+for _ in $(seq 1 10); do mode_is "${before_ra}" && break; sleep 0.5; done
+check "pad mode restored after exit (${before_ra})" mode_is "${before_ra}"
 
 log "Second SD card"
 card="$(vm "lsblk -dno NAME | grep '^mmcblk' | head -n1")"

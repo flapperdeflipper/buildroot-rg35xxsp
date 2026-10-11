@@ -1,0 +1,18 @@
+[Unit]
+Description=Syncthing file synchronization
+Documentation=https://docs.syncthing.net/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/syncthing serve --no-browser
+Restart=on-failure
+SuccessExitStatus=3 4
+RestartForceExitStatus=3 4
+
+# The slice ships with the game-mode round; systemd creates it with
+# defaults until then.
+Slice=background.slice
+
+[Install]
+WantedBy=default.target

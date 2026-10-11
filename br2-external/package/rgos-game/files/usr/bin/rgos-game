@@ -1,0 +1,26 @@
+#!/bin/bash
+# Launch a game/emulator in games.slice with the Mesa copy-image override
+# (Mali-G31 has no hardware blitter; with the override these extensions
+# force CPU untiling instead of GPU blits) and the pad in passthrough
+# mode: raw gamepad events for RetroArch's udev input driver. Both revert
+# when the game exits.
+set -u
+mode_file="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/rgos-padd.mode"
+prev="$(cat "${mode_file}" 2>/dev/null || echo mouse)"
+[[ "${prev}" == osk ]] && prev=mouse
+
+# First run: install the default RetroArch config for the user; RetroArch
+# owns the file afterwards, so settings saves persist.
+cfg="${HOME}/.config/retroarch/retroarch.cfg"
+if [[ ! -e "${cfg}" && -e /etc/rgos/retroarch.cfg.defaults ]]; then
+    mkdir -p "$(dirname "${cfg}")"
+    cp /etc/rgos/retroarch.cfg.defaults "${cfg}"
+fi
+
+rgos-padctl mode passthrough 2>/dev/null
+systemd-run --user --quiet --collect --slice=games.slice --same-dir \
+    --setenv=MESA_EXTENSION_OVERRIDE="-GL_OES_copy_image -GL_EXT_copy_image -GL_NV_copy_image -GL_ARB_copy_image" \
+    -- "$@"
+rc=$?
+rgos-padctl mode "${prev}" 2>/dev/null
+exit "${rc}"

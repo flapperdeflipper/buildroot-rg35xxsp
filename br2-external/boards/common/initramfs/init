@@ -16,28 +16,42 @@ mount -t proc proc /proc
 mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev
 
+# The initramfs ships no /dev/console (the kernel warns and gives PID1 no
+# stdio). devtmpfs provides one: reopen stdio so init errors and the
+# FATAL rescue shell below are visible on the serial console.
+[ -c /dev/console ] && exec </dev/console >/dev/console 2>&1
+
 echo "rgos-init: starting"
 
 # Find the system disk by probing: mount partition 2 of each candidate as
 # erofs. Probing (not just taking the first disk) matters in QEMU, where
 # mmcblk0 can be the second SD card while the system disk is vda.
+# Partitions can appear well after init starts (MMC probes late), so
+# retry with a deadline instead of failing on the first miss.
 mkdir -p /mnt
 DISK=""
-for d in /dev/mmcblk0 /dev/vda /dev/mmcblk1; do
-    [ -b "${d}" ] || continue
-    case "${d}" in
-        /dev/mmcblk*) cand="${d}p2" ;;
-        *)            cand="${d}2"  ;;
-    esac
-    [ -b "${cand}" ] || continue
-    if mount -t erofs -o ro "${cand}" /mnt 2>/dev/null; then
-        DISK="${d}"
-        break
-    fi
+tries=100   # 100 x 0.1s = 10s
+while [ "${tries}" -gt 0 ]; do
+    for d in /dev/mmcblk0 /dev/vda /dev/mmcblk1; do
+        [ -b "${d}" ] || continue
+        case "${d}" in
+            /dev/mmcblk*) cand="${d}p2" ;;
+            *)            cand="${d}2"  ;;
+        esac
+        [ -b "${cand}" ] || continue
+        if mount -t erofs -o ro "${cand}" /mnt 2>/dev/null; then
+            DISK="${d}"
+            break
+        fi
+    done
+    [ -n "${DISK}" ] && break
+    tries=$((tries - 1))
+    sleep 0.1
 done
 if [ -z "${DISK}" ]; then
     echo "rgos-init: FATAL: no disk with an erofs root partition"
     cat /proc/partitions
+    echo "rgos-init: rescue shell on the serial console"
     exec sh
 fi
 case "${DISK}" in

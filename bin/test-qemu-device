@@ -1,0 +1,142 @@
+#!/bin/bash
+# Test the REAL rg35xxsp device image under QEMU: the exact kernel and
+# genimage sdcard shipped to the device. Complements bin/test-qemu, which
+# tests the separate qemu-arm64 board build. This one catches bugs the
+# board suite cannot see (device kernel config, image assembly, the
+# kernel-embedded initramfs, the storage layout as shipped).
+#
+# Boot path: qemu virt loads the kernel directly (no SPL/U-Boot/DTB - the
+# firmware path stays device-only), NO external initrd, so the
+# kernel-embedded initramfs is exactly what runs, like on the device.
+#
+# Usage: bin/test-qemu-device [--keep]
+#   --keep  leave the VM running for manual inspection (ssh port below)
+# State in tmp/qemu-dev (serial.log, sd.img work copy); SSH forwarded to
+# localhost:2229 (no key is provisioned in artifacts; use --keep + serial).
+set -u
+
+cd "$(dirname "$0")/.." || exit 1
+state=tmp/qemu-dev
+port=2229
+board=rg35xxsp
+keep=0
+[[ "${1:-}" == "--keep" ]] && keep=1
+
+log() { printf '\033[1;34m[test-qemu-device]\033[0m %s\n' "$*"; }
+die() { printf '\033[1;31m[test-qemu-device] FAIL:\033[0m %s\n' "$*" >&2; exit 1; }
+
+require_tools() { for t in "$@"; do command -v "${t}" >/dev/null || die "missing tool: ${t}"; done; }
+require_tools qemu-system-aarch64 gunzip mcopy mdir python3
+
+art_img="artifacts/${board}/rgos-${board}.img"
+art_gz="${art_img}.gz"
+art_kernel="artifacts/${board}/Image"
+[[ -f ${art_kernel} ]] || die "no ${art_kernel} (fetch artifacts first)"
+
+mkdir -p "${state}"
+
+# --- work copy of the sdcard image (fresh per run; the test boots and
+# writes to it) ---
+if [[ -f ${art_img} ]]; then
+    src="${art_img}"
+elif [[ -f ${art_gz} ]]; then
+    log "uncompressing ${art_gz}"
+    gunzip -k -c "${art_gz}" > "${art_img}" || die "gunzip failed"
+    src="${art_img}"
+else
+    die "no rgos-${board}.img(.gz) in artifacts/${board}/"
+fi
+rm -f "${state}/sd.img"
+cp --reflink=auto "${src}" "${state}/sd.img" || cp "${src}" "${state}/sd.img"
+
+# --- boot partition byte offset (MBR partition 1), for mtools ---
+p1_off="$(python3 - "${state}/sd.img" <<'PY'
+import sys
+with open(sys.argv[1], 'rb') as f:
+    mbr = f.read(512)
+start = int.from_bytes(mbr[454:458], 'little') * 512
+print(start)
+PY
+)" || die "cannot parse MBR"
+[[ ${p1_off} -gt 0 ]] || die "partition 1 offset looks wrong: ${p1_off}"
+
+# --- stop a previous instance of ours ---
+if [[ -f ${state}/qemu.pid ]] && kill -0 "$(cat "${state}/qemu.pid")" 2>/dev/null; then
+    kill "$(cat "${state}/qemu.pid")" 2>/dev/null
+    sleep 1
+fi
+
+# --- launch: virt, no external initrd (device path), serial to file ---
+: > "${state}/serial.log"
+if sysctl kern.hv.support 2>/dev/null | grep -q 1; then
+    accel=(-accel hvf -cpu host)
+else
+    accel=(-accel tcg -cpu cortex-a72)
+fi
+# NB: the disk MUST use the virtio-mmio transport (-device
+# virtio-blk-device). "-drive if=virtio" would create a PCI device and
+# this kernel builds VIRTIO_MMIO, not VIRTIO_PCI: no disk, no test.
+qemu-system-aarch64 \
+    -machine virt "${accel[@]}" -smp 4 -m 1024 \
+    -display none -monitor none \
+    -serial "file:${state}/serial.log" \
+    -daemonize -pidfile "${state}/qemu.pid" \
+    -kernel "${art_kernel}" \
+    -append "console=ttyAMA0 loglevel=7" \
+    -drive "file=${state}/sd.img,if=none,id=hd0,format=raw" \
+    -device virtio-blk-device,drive=hd0 \
+    -netdev "user,id=n0,hostfwd=tcp::${port}-:22" \
+    -device virtio-net-device,netdev=n0 \
+    || die "qemu failed to start"
+log "VM up (pid $(cat "${state}/qemu.pid")), port ${port}, serial ${state}/serial.log"
+
+# --- wait for the initramfs to hand over to systemd ---
+ok=0
+for _ in $(seq 1 60); do
+    if grep -q "rgos-init: switching to systemd" "${state}/serial.log" 2>/dev/null; then
+        ok=1; break
+    fi
+    if grep -q "Kernel panic" "${state}/serial.log" 2>/dev/null; then
+        tail -30 "${state}/serial.log"
+        die "kernel panic during early boot (see ${state}/serial.log)"
+    fi
+    sleep 1
+done
+[[ ${ok} == 1 ]] || { tail -30 "${state}/serial.log"; die "initramfs did not reach switch_root in 60 s"; }
+log "initramfs OK (probe + overlay + switch_root)"
+
+# --- wait for the boot report on the FAT partition (multi-user + 30 s) ---
+ok=0
+for _ in $(seq 1 150); do
+    if mcopy -o -i "${state}/sd.img@@${p1_off}" ::/rgos-boot.log "${state}/rgos-boot.log" 2>/dev/null; then
+        ok=1; break
+    fi
+    if grep -q "Kernel panic" "${state}/serial.log" 2>/dev/null; then
+        tail -30 "${state}/serial.log"
+        die "kernel panic after switch_root (see ${state}/serial.log)"
+    fi
+    sleep 2
+done
+[[ ${ok} == 1 ]] || { tail -40 "${state}/serial.log"; die "no rgos-boot.log on the boot partition after 5 min"; }
+log "boot report written: ${state}/rgos-boot.log"
+
+failures=0
+if grep -q "0 loaded units listed" "${state}/rgos-boot.log"; then
+    log "no failed systemd units"
+else
+    log "WARNING: failed units listed in rgos-boot.log:"
+    sed -n '/failed units/,/^$/p' "${state}/rgos-boot.log" | head -10
+    failures=1
+fi
+
+if [[ ${keep} == 1 ]]; then
+    log "--keep: VM left running (kill: kill \$(cat ${state}/qemu.pid))"
+else
+    kill "$(cat "${state}/qemu.pid")" 2>/dev/null
+fi
+
+if [[ ${failures} == 0 ]]; then
+    log "PASS: device image boots under QEMU (embedded initramfs, storage layout, systemd)"
+else
+    die "booted, but with failed units (see ${state}/rgos-boot.log)"
+fi

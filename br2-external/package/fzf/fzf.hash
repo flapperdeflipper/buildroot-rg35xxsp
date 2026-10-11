@@ -1,3 +1,4 @@
-# Locally computed (vendored by Buildroot)
-sha256  de72d134f4d1c3ee08a7322a78d44f4bfcc76fc83830f2ac26c0d55a17429ad4  fzf-0.74.4-go2.tar.gz
+# Locally computed
+sha256  5529d08897b85ae773695787c811ff9c9eeee32419c8a297fa1dbe586ed0a27e  fzf-0.74.5.tar.gz
+sha256  45fa3fb840dce0fdc95d17803f16a1bbd77218cfa7e4ce828d0b85285396f21e  fzf-0.74.5-go2.tar.gz
 sha256  a296f423c0d30ce3581435e78e7e36c5fe73984a882d8720c72e713b4593588b  LICENSE

@@ -1,125 +1,133 @@
-# How RGOS works
+# How the OS works
 
-The system in one page: what happens between pressing the power button
-and seeing the desktop, where your files live, and how the power and
-input plumbing fits together.
+What happens between the power button and the desktop, where your files
+live, and how power management is set up.
 
-## Boot chain
+## Boot
 
 1. The H700 boot ROM loads the SPL from offset 8 KiB of the SD card in
-   slot TF1. That fixed offset is why the card uses an **MBR** partition
-   table — a GPT entry array would overlap it.
-2. The SPL initialises DRAM (LPDDR4 or LPDDR3 timings, per image) and
-   loads TF-A BL31 and U-Boot.
+   slot TF1. The offset is fixed, so the card uses an MBR partition
+   table. A GPT entry array would overlap the SPL.
+2. The SPL sets up DRAM (LPDDR4 or LPDDR3, depending on the image) and
+   loads TF-A and U-Boot.
 3. U-Boot reads `extlinux/extlinux.conf` from the boot partition and
-   boots the kernel with its initramfs.
-4. The initramfs (`boards/common/initramfs/init`, busybox) mounts the
-   read-only root, the overlay and the data partition, puts an overlayfs
-   over the whole root, binds `/home` from `/data/home`, then switches
-   to systemd.
-5. systemd brings up the machine and starts the desktop session (labwc +
-   sfwbar panel) via automatic login.
+   starts the kernel with its initramfs.
+4. The initramfs mounts the root, overlay and data partitions, puts an
+   overlayfs over the root, and starts systemd.
+5. systemd logs you in and starts the desktop: labwc with the sfwbar
+   panel.
 
-## Storage layout
+## Storage
 
-| # | Label | Filesystem | Content |
+| Partition | Label | Filesystem | Content |
 |---|---|---|---|
-| raw | — | — | SPL + U-Boot at 8 KiB |
-| p1 | RGOS-BOOT | FAT | kernel, DTBs, initramfs, extlinux config, provisioning files |
-| p2 | rgos-root | erofs (lz4hc), read-only | the whole OS |
-| p3 | rgos-overlay | ext4, 2 GiB | overlayfs upper + work dir for the whole root |
-| p4 | rgos-data | ext4, grown to fill the card on first boot | `/data`: home directories, user data |
+| raw | | | SPL and U-Boot at 8 KiB |
+| p1 | RGOS-BOOT | FAT | kernel, initramfs, DTBs, extlinux config, provisioning files |
+| p2 | rgos-root | erofs, read-only | the OS |
+| p3 | rgos-overlay | ext4, 2 GiB | overlayfs upper and work directory |
+| p4 | rgos-data | ext4, grows to fill the card on first boot | `/data`, home directories |
 
-- The running root is an **overlayfs**: the immutable erofs image below,
-  and every change to `/etc`, `/var`, installed files and the journal on
-  p3 above. Nothing you change at runtime is lost on reboot; a reflash
-  of the OS partition leaves it untouched.
-- `/home` is a bind mount from `/data/home`, seeded from the image on
-  first boot. Data lives on its own partition, so an OS update never
-  touches it.
-- The raw layers stay reachable for debugging: `/mnt/root-ro` (the
-  erofs lower) and `/mnt/overlay` (the ext4 upper).
-- The overlay is mounted with `index=off` — image updates replace the
-  erofs lower wholesale, and a stale inode index would fail the mount.
+The running system is an overlayfs. The erofs image below never changes;
+every runtime change to `/etc`, `/var`, the journal and installed files
+lands on p3. Changes survive reboots, and flashing a new OS image does
+not touch them.
 
-**Why this shape:** the OS proper is immutable and reproducible (erofs,
-no fsck, dm-verity-ready); everything mutable is confined to p3/p4. The
-overlay upper is deliberately *persistent* — the journal, configuration
-edits and installed files survive reboots — unlike stateless /etc
-designs that reset every boot. `/home` and `/data` are real mounts, not
-symlink farms.
+`/home` is a bind mount from `/data/home`. On first boot it is seeded
+from the image. Because home lives on its own partition, an OS update
+never touches your files.
+
+The underlying partitions stay reachable for inspection: `/mnt/root-ro`
+is the erofs image, `/mnt/overlay` is the writable layer.
+
+The layout is fully exercised by the automated QEMU tests; hardware
+validation is in progress.
+
+Notes on the design:
+
+- MBR instead of GPT, because the boot ROM expects the SPL at 8 KiB.
+- The overlay upper is persistent instead of being wiped each boot. The
+  journal and configuration edits are worth keeping.
+- The overlay is mounted with `index=off`. Image updates replace the
+  erofs side wholesale, and a stale inode index would fail the mount.
+- `/home` and `/data` are real mounts, not symlinks.
 
 ## Desktop and input
 
-- **labwc** (wlroots compositor) with an **sfwbar** panel: clock,
-  battery, network, SD card, power menu. **foot** terminal, **PCManFM**
-  files, **Mousepad** notes; Xwayland for X11 apps.
-- **rgos-padd** turns the handheld buttons into a pointer and keyboard
-  driver: pointer mode (d-pad moves, A clicks, B right-click/Esc,
-  L1/R1 scroll), navigation mode for menus and lists, keys mode for
-  typing. `SELECT` toggles the on-screen keyboard (**oskd**), which
-  opens automatically when a text field needs input and no hardware
-  keyboard is attached. Remapping: `/etc/rgos/padd.conf`.
-- **Notifications** (mako): volume and brightness popups, SD card
-  events, radio toggles, low-battery warnings. Anything can send one
-  with `rgos-notify "Summary" "Body" icon`.
+The desktop is labwc (a Wayland compositor) with an sfwbar panel showing
+the clock, battery, network, SD card and a power menu. It ships with the
+foot terminal, PCManFM files, Mousepad notes and Xwayland for X11 apps.
 
-## Power management (rgos-power)
+rgos-padd drives it all from the handheld buttons:
 
-Configured in `/etc/rgos/power.conf` (system defaults) and
-`~/.config/rgos/power.conf` (per user); `rgos-power reload` applies
-changes.
+- Pointer mode (the default): the d-pad moves the pointer, A clicks,
+  B right-clicks, L1/R1 scroll.
+- Navigation mode for menus and lists.
+- Keys mode for typing.
+- SELECT toggles the on-screen keyboard. It opens by itself when a text
+  field needs input and no hardware keyboard is attached.
 
-- **Profiles** — `battery` / `balanced` / `performance` scale the CPU and
-  GPU frequency ceilings; the panel power menu switches them, and
-  `profile_ac` can switch automatically on charger connect.
-- **Idle steps** — dim after `dim_after` (60 s), screen off after
-  `off_after` (180 s), suspend after `suspend_after` (600 s, on battery).
-  Lid close and a short power-key press suspend (`lid_action`,
-  `power_key_action`).
-- **Suspend** — `suspend_mode=auto` uses deep sleep (the TF-A SRAM
-  suspend stub) when the firmware provides it, s2idle otherwise. Around
-  suspend the codec DAC is muted (no pop), the power LED goes off, and
-  an optional RTC watchdog (`suspend_poweroff_min`) powers the device
-  off cleanly after N minutes asleep.
-- **Battery** — one low-battery notification per discharge at
-  `warn_percent` (10), a clean shutdown at `poweroff_percent` (3), and
-  the red status LED on while charging (`charge_led`).
-- **Radios** — Wi-Fi and Bluetooth start blocked and are remembered once
-  toggled (`wifi_default`, `bluetooth_default`). Wi-Fi power saving is
-  deliberately off on this SDIO chip (latency spikes; `iw dev wlan0 set
-  power_save off` is reapplied at interface-up, radio-on and resume).
-- **Turbo** — `cpu_turbo=1` unlocks the 1.512 GHz OPP above the stock
-  1.416 GHz ceiling; off by default.
+Button mapping lives in `/etc/rgos/padd.conf`.
 
-`rgos-power status` shows battery, draw, time left, radios and profile;
-`rgos-power log <seconds>` records a power log for measurements.
+Notifications appear through mako: volume and brightness popups, SD card
+events, radio toggles, low-battery warnings. Any script can send one:
 
-## Tuning decisions (and what was rejected)
+```
+rgos-notify "Summary" "Body" icon
+```
 
-Adopted: zram swap with lzo-rle + idle zstd recompression, MGLRU, journald
-15-minute sync + `noatime,commit=60` data mounts, a small sysctl pack
-(panic-reboot, inotify limits, no NMI watchdog), per-session GPU
-frequency caps in the profiles.
+## Power management
 
-Rejected, with reasons:
+Settings live in `/etc/rgos/power.conf`, with per-user overrides in
+`~/.config/rgos/power.conf`. Run `rgos-power reload` after editing.
 
-- **KSM** — dedups single-digit MB on this workload while waking a
-  kernel thread every 500 ms; the wakeup class we remove for battery.
-- **Fake suspend** (display off + freeze, system awake) — a workaround
-  for hardware with broken suspend; real suspend works here.
-- **Core parking before suspend** — PSCI already powers secondary cores
-  down in real suspend; parking them first only panics some platforms.
-- **Aggressive memory-manager sysctls** — most restate kernel defaults or
-  never engage at these dirty-writeback intervals; the useful part
-  (zram, recompression) is in.
-- **Firefox/Chromium as the full browser** — far beyond 1 GB RAM;
-  NetSurf covers light browsing and WebKitGTK is the evaluated "real
-  web" option (see apps.md).
+Profiles: `battery`, `balanced` and `performance` cap the CPU and GPU
+frequencies. Switch them from the panel power menu. With `profile_ac`
+set, the profile changes automatically when you plug in the charger.
 
-## Image services, next steps of the layout
+Idle: the screen dims after 60 seconds, turns off after 3 minutes, and
+the device suspends after 10 minutes on battery. The timeouts are
+`dim_after`, `off_after` and `suspend_after`. Closing the lid or pressing
+the power key briefly also suspends (`lid_action`, `power_key_action`).
 
-The storage layout was built for growth: A/B root partitions with RAUC
-updates, a `/data/config` layer for system-wide overrides, and sysext /
-confext image stores under `/data/extensions` all fit on top of the
-current partition scheme without changing it.
+Suspend uses deep sleep when the firmware provides it, s2idle otherwise
+(`suspend_mode`). Around suspend the audio codec is muted, so headphones
+do not pop, and the power LED turns off. Setting `suspend_poweroff_min`
+powers the device off cleanly after that many minutes asleep.
+
+Battery: one low-battery notification per discharge at 10 percent
+(`warn_percent`), a clean shutdown at 3 percent (`poweroff_percent`), and
+the red status LED lights up while charging (`charge_led`).
+
+Radios: Wi-Fi and Bluetooth start blocked. Once you toggle them, the
+choice is remembered across reboots (`wifi_default`, `bluetooth_default`).
+Wi-Fi power saving stays off on purpose. The SDIO chip in this device
+has large latency spikes with it on, so the setting is reapplied whenever
+the interface comes up.
+
+`rgos-power status` prints battery, power draw, time left, radio states
+and the current profile. `rgos-power log 10` records samples once a
+second for measurements.
+
+Setting `cpu_turbo=1` unlocks the 1.512 GHz turbo OPP above the stock
+1.416 GHz ceiling. It is off by default.
+
+## Tuning decisions
+
+In use: zram swap with lzo-rle and idle zstd recompression, MGLRU,
+journald sync every 15 minutes, `noatime,commit=60` data mounts, a small
+sysctl pack (panic reboot, inotify limits, NMI watchdog off), and GPU
+frequency caps per profile.
+
+Rejected, and why:
+
+- KSM: dedups single-digit megabytes on this workload while waking a
+  kernel thread every 500 ms.
+- Fake suspend (screen off, system awake): a workaround for devices with
+  broken suspend. Ours works.
+- Core parking before suspend: PSCI already powers the secondary cores
+  down, and parking them first can panic.
+- Aggressive memory sysctls: most restate kernel defaults or never engage
+  with our writeback intervals.
+- Firefox or Chromium as the full browser: both are far beyond 1 GB of
+  RAM. NetSurf covers light browsing, WebKitGTK is the evaluated option
+  for the rest (see apps.md).

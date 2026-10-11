@@ -22,6 +22,12 @@ VARIANT_ID=${BOARD_NAME}
 EOF
 ln -sf ../usr/lib/os-release "${TARGET_DIR}/etc/os-release"
 
+# Lock root: an empty root password on a public image is a hole. `user`
+# (passwordless console login by design) with passwordless sudo is the
+# access path; sshd is key-only anyway. bin/lib/release-scan.sh enforces
+# this.
+sed -i -E 's/^(root:)[^:]*:/\1!:/' "${TARGET_DIR}/etc/shadow"
+
 # Mount point for the RGOS-BOOT vfat partition (kernel, DTBs, extlinux.conf)
 mkdir -p "${TARGET_DIR}/boot"
 

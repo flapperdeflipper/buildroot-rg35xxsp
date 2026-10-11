@@ -21,11 +21,13 @@ Details (build VM, incremental builds, troubleshooting): docs/building.md.
 
 ## Documentation
 
-- docs/system.md — how the OS works: boot chain, storage layout, power
-  management, design decisions
-- docs/hardware.md — the device: SoC, peripherals, drivers, button codes
-- docs/apps.md — what's installed and how to drive it with the pad
-- docs/testing.md — flashing, hardware verification, QEMU tests, logs
+- docs/system.md: how the OS works. Boot chain, storage layout, power
+  management, design decisions.
+- docs/hardware.md: the device. SoC, peripherals, drivers, button codes.
+- docs/apps.md: what's installed and how to drive it with the pad.
+- docs/testing.md: flashing, hardware verification, QEMU tests, logs.
+- docs/building.md: the build VM and everything around it.
+- docs/release.md: how images get released.
 
 ## Install
 
@@ -34,9 +36,10 @@ bin/flash.sh                      # list SD cards
 bin/flash.sh --key ~/.ssh/id_ed25519.pub --wifi "My network" --country NL disk4
 ```
 
-Put the card in slot **TF1**. Images contain no SSH keys or Wi-Fi credentials;
-they are provisioned per card through the `RGOS-BOOT` partition (see
-`README.txt` there, or `bin/provision.sh`). SSH is key-only.
+Put the card in slot **TF1**. Images contain no SSH keys or Wi-Fi
+credentials. Both are provisioned per card through the `RGOS-BOOT`
+partition (see `README.txt` there, or `bin/provision.sh`). SSH is
+key-only.
 
 ## Controls
 
@@ -46,13 +49,25 @@ keys mode. Remap in `/etc/rgos/padd.conf`.
 
 ## Screenshots
 
-QEMU, running the same image as the device (640 x 480 panel):
+QEMU, running the same image as the device (640 x 480 panel).
 
-| | |
-|---|---|
-| ![Desktop](docs/screenshots/desktop.png)<br>Desktop: labwc + sfwbar panel | ![Main menu](docs/screenshots/menu.png)<br>Main menu (Start) |
-| ![Terminal](docs/screenshots/terminal.png)<br>foot terminal | ![On-screen keyboard](docs/screenshots/osk.png)<br>On-screen keyboard (Select), pad-driven |
-| ![Files](docs/screenshots/files.png)<br>PCManFM | ![Battery warning](docs/screenshots/battery.png)<br>Notifications (mako) |
+![Desktop](docs/screenshots/desktop.png)
+*The desktop: labwc with the sfwbar panel*
+
+![Main menu](docs/screenshots/menu.png)
+*The main menu (Start)*
+
+![Terminal](docs/screenshots/terminal.png)
+*The foot terminal*
+
+![On-screen keyboard](docs/screenshots/osk.png)
+*The on-screen keyboard (Select), driven from the pad*
+
+![Files](docs/screenshots/files.png)
+*PCManFM*
+
+![Battery warning](docs/screenshots/battery.png)
+*Notifications (mako)*
 
 ## Test in QEMU
 

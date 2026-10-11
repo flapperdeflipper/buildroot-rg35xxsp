@@ -37,3 +37,17 @@ BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_RGOS_PATH)/rootfs_overlay $(BR2_EXTERNAL_RGOS
 BR2_PACKAGE_WEBKITGTK=y
 BR2_PACKAGE_WEBKITGTK_SANDBOX=y
 BR2_PACKAGE_RGOS_WEB=y
+
+# File sync as a session user service (same delivery planned for the
+# device; promoted from wip/tooling staging).
+BR2_PACKAGE_SYNCTHING=y
+
+# Emulators (promoted from wip/tooling staging): RetroArch + first core
+# set; rgos-game launcher, slices and defaults config.
+BR2_PACKAGE_RGOS_GAME=y
+BR2_PACKAGE_RETROARCH=y
+BR2_PACKAGE_LIBRETRO_GAMBATTE=y
+BR2_PACKAGE_LIBRETRO_MGBA=y
+BR2_PACKAGE_LIBRETRO_NESTOPIA=y
+BR2_PACKAGE_LIBRETRO_SNES9X=y
+BR2_PACKAGE_LIBRETRO_GENESIS_PLUS_GX=y

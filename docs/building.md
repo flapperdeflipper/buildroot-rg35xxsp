@@ -1,9 +1,8 @@
 # Building RGOS
 
-Builds never run on the Mac directly — the toolchain lives in a Linux VM
-(`rgbox`, managed by [lima](https://lima-vm.io/)). The `bin/buildbox.sh`
-wrapper handles syncing the tree, running the build and fetching results,
-so day-to-day it's one command:
+Builds run in a Linux VM, not on the Mac. The `bin/buildbox.sh` wrapper
+syncs the tree, runs the build and copies the results back, so a build
+is one command:
 
 ```bash
 bin/buildbox.sh create            # create the VM (once)
@@ -11,58 +10,60 @@ bin/buildbox.sh build             # RG35XX SP image -> artifacts/rg35xxsp/
 bin/buildbox.sh build qemu-arm64  # QEMU test image -> artifacts/qemu-arm64/
 ```
 
-Requirements on the Mac: Apple Silicon (or arm64 Linux), `lima`, `jq`,
-`qemu`. First build downloads and compiles everything (an hour or two);
-later builds are incremental.
+You need macOS on Apple Silicon (or arm64 Linux) with `lima`, `jq` and
+`qemu` installed. The first build downloads and compiles everything and
+takes an hour or two. Later builds are incremental.
 
 ## What gets built
 
-- **Pinned Buildroot** (version in `bin/lib/versions.sh`), patched from
-  `buildroot-patches/` on every run — the tree is only re-patched when
-  the version or the patches change.
-- **Linux** with the Allwinner H700 patch set, fetched at build time from
-  a pinned ROCKNIX commit (`RGOS_ROCKNIX_COMMIT` in
-  `br2-external/external.mk`); hashes in `br2-external/patches/linux/`.
-- **U-Boot** plus a second SPL build with LPDDR3 timings
-  (`rgos-uboot-ddr3`), **TF-A** with the SRAM suspend stub, and the
-  desktop/app stack from `br2-external/package/`.
+- A pinned Buildroot (version in `bin/lib/versions.sh`), patched from
+  `buildroot-patches/`. It is only re-patched when the version or the
+  patches change.
+- Linux with the Allwinner H700 patch set, fetched at build time from a
+  pinned ROCKNIX commit (`RGOS_ROCKNIX_COMMIT` in
+  `br2-external/external.mk`).
+- U-Boot, a second SPL with LPDDR3 timings, TF-A with the suspend stub,
+  and the desktop and app packages from `br2-external/package/`.
 
-Each build produces `rgos-<board>.img.gz`, a CycloneDX SBOM
-(`*.sbom.cdx.json`) and keeps the last three images in
-`artifacts/<board>/history/`.
+Every build produces a gzipped image, a CycloneDX SBOM next to it, and
+keeps the last three images in `artifacts/<board>/history/`.
 
-## Useful commands
+## Commands
 
-| Command | What it does |
-|---|---|
-| `bin/buildbox.sh build` | full build of the RG35XX SP image |
-| `bin/buildbox.sh make <board> <pkg>-dirclean` | wipe one package's build dir (required after changing its dependencies) |
-| `bin/buildbox.sh check <board>` | defconfig/kernel-fragment sanity check; run it after changing defconfigs |
-| `bin/buildbox.sh ssh '<cmd>'` | run a command in the build VM |
-| `bin/buildbox.sh cache pull` / `push` | sync the download cache with `~/.cache/rgos/dl` on the Mac |
-| `bin/check-versions` | audit pinned package versions against upstream (`--update` bumps tag-pinned ones) |
+- `bin/buildbox.sh make <board> <pkg>-dirclean` wipes one package's build
+  directory. Do this after changing a package's dependencies.
+- `bin/buildbox.sh check <board>` verifies defconfigs and kernel
+  fragments. Run it after changing them.
+- `bin/buildbox.sh ssh '<cmd>'` runs a command in the VM.
+- `bin/buildbox.sh cache pull` and `push` sync the download cache with
+  `~/.cache/rgos/dl` on the Mac.
+- `bin/check-versions` compares pinned versions against upstream.
+  `--update` bumps packages pinned to tags.
 
-Local-source packages (`rgos-padd`, `rgos-oskd`, `rgos-power`, ...) are
-rebuilt automatically when their sources change.
+Packages with local sources (rgos-padd, rgos-power and friends) rebuild
+automatically when their sources change.
 
-## Concurrent use
+## Several builds at once
 
-The VM safely serves several builds and terminals at once:
-
-- one build per board at a time (`flock` refuses a second),
-- a per-board work copy under `~/work/<board>`,
-- QEMU test runs claim their own instance directory and SSH port
-  (`tmp/qemu-N`, port 2222+N; `RGOS_QEMU_INSTANCE=N` selects one).
+The VM serves parallel work safely. Only one build per board runs at a
+time; a second one is refused. Each board has its own work directory.
+QEMU test runs get their own instance directory and SSH port under
+`tmp/qemu-N`.
 
 ## Troubleshooting
 
-- `Lima VM 'rgbox' not found or not running` — `bin/buildbox.sh start`.
-- Disk full — `bin/buildbox.sh ssh 'du -sh ~/output-*'`, delete an output
-  dir you don't need, or prune one with
+- `Lima VM 'rgbox' not found or not running`: run `bin/buildbox.sh start`.
+- Disk full: check with `bin/buildbox.sh ssh 'du -sh ~/output-*'`, remove
+  an output directory, or prune one with
   `bin/buildbox.sh ssh 'bash ~/work/<board>/bin/build-image.sh --prune <board>'`.
-- Out of memory during big compiles (WebKit's JavaScriptCore kills
-  `cc1plus`) — the VM ships a 12 GB swapfile (`/swapfile-build`, in
-  `/etc/fstab`). After recreating the VM, restore it with
-  `sudo fallocate -l 12G /swapfile-build && sudo chmod 600 /swapfile-build && sudo mkswap /swapfile-build && sudo swapon /swapfile-build`.
-- Big first builds: WebKitGTK needs ~15 GB of disk and 2–4 h (ICU,
-  libsoup3, WebKit itself). Everything else stays well under that.
+- Out of memory during big compiles: WebKit's JavaScriptCore can kill
+  the compiler. The VM ships a 12 GB swapfile for this (`/swapfile-build`,
+  registered in `/etc/fstab`). After recreating the VM:
+
+  ```bash
+  sudo fallocate -l 12G /swapfile-build && sudo chmod 600 /swapfile-build
+  sudo mkswap /swapfile-build && sudo swapon /swapfile-build
+  ```
+
+- WebKitGTK needs about 15 GB of disk and 2 to 4 hours for the first
+  build. Everything else stays well below that.

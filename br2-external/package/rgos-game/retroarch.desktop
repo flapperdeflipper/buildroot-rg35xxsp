@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=RetroArch
+Comment=Emulator frontend (libretro)
+Exec=rgos-game retroarch
+Terminal=false
+Categories=Game;

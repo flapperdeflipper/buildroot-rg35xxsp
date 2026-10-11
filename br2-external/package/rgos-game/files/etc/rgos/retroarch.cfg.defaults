@@ -1,0 +1,11 @@
+# RetroArch defaults for RGOS, installed to ~/.config/retroarch/
+# retroarch.cfg on first rgos-game launch; RetroArch owns the file after
+# that (its own settings saves persist).
+video_driver = "gl"
+video_fullscreen = "true"
+video_scale_integer = "true"
+audio_driver = "sdl2"
+input_driver = "udev"
+input_joypad_driver = "udev"
+menu_driver = "rgui"
+libretro_directory = "/usr/lib/libretro"

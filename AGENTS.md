@@ -57,6 +57,9 @@ configuration over symlinks; stay mergeable with ~/.projects/offline-lab.
   keep stale copies; clean-build that output dir. Remove other packages'
   files in post-build.sh, never from a package.
 - Never run check/make on an output dir while a full build runs there.
+- Build-test kernel fragment changes before wiring them into a defconfig,
+  and announce them on the channel first (an untested trim fragment broke
+  an in-flight build once).
 - SPI panel modules aren't autoloaded (spi:<compatible> mismatch); see
   boards/h700/rootfs_overlay/etc/modules-load.d/rgos-panel.conf.
 - The test device has the v2 panel (stock fw: fog_fj035fhd05_v1), the

@@ -1,0 +1,9 @@
+[Unit]
+Description=Games slice
+
+[Slice]
+CPUWeight=100
+IOWeight=200
+TasksMax=60%
+ManagedOOMMemoryPressure=kill
+ManagedOOMMemoryPressureLimit=50%

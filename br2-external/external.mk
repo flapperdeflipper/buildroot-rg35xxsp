@@ -88,6 +88,24 @@ endef
 LINUX_POST_PATCH_HOOKS += RGOS_LINUX_APPLY_ROCKNIX
 endif
 
+# Embedded initramfs: keeps the kernel self-contained no matter how the
+# bootloader behaves. (U-Boot's extlinux does parse the INITRD line via
+# pxe_utils.c, but an external initrd is then merged OVER this embedded
+# copy, so the kernel always has a working /init.) CONFIG_INITRAMFS_SOURCE
+# (in boards/common/linux.fragment) points at this file, relative to the
+# kernel tree.
+LINUX_DEPENDENCIES += busybox
+define RGOS_LINUX_BUILD_INITRAMFS
+	if [ -x "$(PER_PACKAGE_DIR)/busybox/target/bin/busybox" ]; then \
+		bbroot="$(PER_PACKAGE_DIR)/busybox/target"; \
+	else \
+		bbroot="$(TARGET_DIR)"; \
+	fi; \
+	$(BR2_EXTERNAL_RGOS_PATH)/boards/scripts/build-initramfs.sh \
+		"$$bbroot" "$(@D)/rgos-initramfs.cpio.gz" "$(HOST_DIR)"
+endef
+LINUX_PRE_BUILD_HOOKS += RGOS_LINUX_BUILD_INITRAMFS
+
 # Fail the build when kernel fragment options didn't make it into .config
 define RGOS_LINUX_CHECK_FRAGMENTS
 	$(BR2_EXTERNAL_RGOS_PATH)/boards/scripts/check-kconfig.sh $(@D)/.config \
