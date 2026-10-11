@@ -1,9 +1,12 @@
 #!/bin/bash
 # Second SD card, for the desktop user:
-#   rgos-sdcard menu      Open / Eject / Mount / Format, depending on the card
+#   rgos-sdcard menu      Open / Eject / Mount / Format / Clone / Backup
 #   rgos-sdcard open      file manager on /media/sdcard
 #   rgos-sdcard eject     unmount, so the card can be pulled safely
 #   rgos-sdcard format    erase -> one exFAT partition "RGOS-DATA" (asks twice)
+#   rgos-sdcard clone     copy this device's OS (no data) to the card
+#   rgos-sdcard backup    full card or personal data -> file on the card
+#   rgos-sdcard restore   a backup file from the card, back in place
 #   rgos-sdcard status    the state line (mounted|unusable|ejected|... dev fs label)
 #   rgos-sdcard session   desktop start: ~/SD link + file manager bookmark
 set -u
@@ -57,6 +60,73 @@ format() {
     fi
 }
 
+clone_card() {
+    local disk size
+    disk="$(card_disk)"
+    [[ -n "${disk}" ]] || { note "No SD card in the second slot"; return 1; }
+    size="$(lsblk -dno SIZE "/dev/${disk}" | tr -d ' ')"
+    [[ "$(pick "Turn the ${size} SD card into a copy of this device? " "No" "Yes, erase it and install RGOS")" == Yes* ]] || return 0
+    [[ "$(pick "Really? The card gets this device's OS, none of its files: " "No, keep it" "Clone now")" == "Clone now" ]] || return 0
+    printf '%s\n' "Cloning (a minute or two)..." | fuzzel --dmenu --prompt "SD card: " --lines 1 >/dev/null &
+    local wait_pid=$!
+    sudo -n /usr/libexec/rgos/sdcard clone "${disk}" 2>&1 | systemd-cat -t rgos-sdcard
+    kill "${wait_pid}" 2>/dev/null
+    if [[ ${PIPESTATUS[0]} -eq 0 ]]; then
+        note "Done: the card boots this OS on any RG35XX SP"
+    else
+        note "Cloning failed (see: journalctl -t rgos-sdcard)"
+    fi
+}
+
+backup_card() {
+    local disk mode
+    disk="$(card_disk)"
+    [[ -n "${disk}" ]] || { note "No SD card in the second slot"; return 1; }
+    [[ "${state}" == mounted ]] || { note "The SD card is not mounted"; return 1; }
+    mode="$(pick "Backup what? " "Everything (full card, ~15 min)" "Personal data and settings (quick)")"
+    case "${mode}" in
+        Everything*) mode=full ;;
+        Personal*)   mode=data ;;
+        *) return 0 ;;
+    esac
+    printf '%s\n' "Backing up to the SD card..." | fuzzel --dmenu --prompt "SD card: " --lines 1 >/dev/null &
+    local wait_pid=$!
+    sudo -n /usr/libexec/rgos/sdcard backup "${disk}" "${mode}" 2>&1 | systemd-cat -t rgos-sdcard
+    kill "${wait_pid}" 2>/dev/null
+    if [[ ${PIPESTATUS[0]} -eq 0 ]]; then
+        note "Backup is on the SD card (~/SD)"
+    else
+        note "Backup failed (see: journalctl -t rgos-sdcard)"
+    fi
+}
+
+restore_card() {
+    local disk file target
+    disk="$(card_disk)"
+    [[ -n "${disk}" ]] || { note "No SD card in the second slot"; return 1; }
+    file="$(find "${MNT}" -maxdepth 1 -name 'rgos-*.gz' -printf '%f\n' 2>/dev/null | sort -r | head -20)"
+    [[ -n "${file}" ]] || { note "No backup files on the SD card"; return 1; }
+    file="$(pick "Restore which backup? " ${file})" || return 0
+    case "${file}" in
+        rgos-backup-*)
+            [[ "$(pick "Overwrite the SD card with ${file}? " "No" "Yes, erase the card and restore")" == Yes* ]] || return 0
+            target=full ;;
+        rgos-data-*)
+            [[ "$(pick "Restore personal data and settings from ${file}? " "No" "Yes, restore and reboot later")" == Yes* ]] || return 0
+            target=data ;;
+        *) return 0 ;;
+    esac
+    printf '%s\n' "Restoring..." | fuzzel --dmenu --prompt "SD card: " --lines 1 >/dev/null &
+    local wait_pid=$!
+    sudo -n /usr/libexec/rgos/sdcard restore "${disk}" "${MNT}/${file}" 2>&1 | systemd-cat -t rgos-sdcard
+    kill "${wait_pid}" 2>/dev/null
+    if [[ ${PIPESTATUS[0]} -eq 0 ]]; then
+        [[ ${target} == full ]] && note "Card restored; power off and swap cards" || note "Data restored; reboot to apply"
+    else
+        note "Restore failed (see: journalctl -t rgos-sdcard)"
+    fi
+}
+
 session() {
     local bm="${HOME}/.config/gtk-3.0/bookmarks"
     [[ -e "${HOME}/SD" || -L "${HOME}/SD" ]] || ln -s "${MNT}" "${HOME}/SD"
@@ -68,25 +138,28 @@ menu() {
     local choice
     case "${state}" in
         mounted)
-            choice="$(pick "SD card${label:+ ${label}} (${fstype}): " "Open" "Eject" "Format (erase)")" ;;
+            choice="$(pick "SD card${label:+ ${label}} (${fstype}): " "Open" "Eject" "Backup" "Restore" "Format (erase)")" ;;
         ejected)
-            choice="$(pick "SD card (ejected): " "Mount again" "Format (erase)")" ;;
+            choice="$(pick "SD card (ejected): " "Mount again" "Clone RGOS to it" "Format (erase)")" ;;
         unusable|error)
-            choice="$(pick "SD card not usable (${fstype}): " "Format (erase)")" ;;
+            choice="$(pick "SD card not usable (${fstype}): " "Format (erase)" "Clone RGOS to it")" ;;
         system)
             note "That's an RGOS system card; not mounted"; return ;;
         *)
             if [[ -n "$(card_disk)" ]]; then
-                choice="$(pick "SD card: " "Format (erase)")"
+                choice="$(pick "SD card: " "Format (erase)" "Clone RGOS to it")"
             else
                 note "No SD card in the second slot"; return
             fi ;;
     esac
     case "${choice}" in
-        Open)             pcmanfm "${MNT}" & ;;
-        Eject)            eject ;;
-        "Mount again")    mount_again ;;
-        "Format (erase)") format ;;
+        Open)                 pcmanfm "${MNT}" & ;;
+        Eject)                eject ;;
+        "Mount again")        mount_again ;;
+        "Format (erase)")     format ;;
+        "Clone RGOS to it")   clone_card ;;
+        Backup)               backup_card ;;
+        Restore)              restore_card ;;
     esac
 }
 
@@ -95,6 +168,9 @@ case "${1:-menu}" in
     open)    pcmanfm "${MNT}" & ;;
     eject)   eject ;;
     format)  format ;;
+    clone)   clone_card ;;
+    backup)  backup_card ;;
+    restore) restore_card ;;
     status)  echo "${state} ${dev:-} ${fstype:-} ${label:-}" ;;
     session) session ;;
     *)       sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;

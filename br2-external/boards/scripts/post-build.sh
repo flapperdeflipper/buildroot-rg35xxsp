@@ -39,7 +39,43 @@ ln -sf /dev/null "${TARGET_DIR}/etc/systemd/system/getty@tty1.service"
 # Menu clutter. Files installed by other packages must be removed here, not
 # in a package: with per-package directories they'd come back at the merge.
 rm -f "${TARGET_DIR}/usr/share/applications/footclient.desktop" \
-      "${TARGET_DIR}/usr/share/applications/foot-server.desktop"
+      "${TARGET_DIR}"/usr/share/applications/foot-server.desktop
+
+# --- Size: files nothing on the device ever reads (curated, keep it that
+# way; measurements + verdicts in tmp/agents/size-trim.md) ---
+# Boot files: U-Boot loads kernel/DTBs from the RGOS-BOOT vfat that mounts
+# over /boot, so the copies the kernel package drops into the rootfs stay
+# shadowed forever. post-image.sh builds the vfat from BINARIES_DIR, never
+# from here; /boot itself stays as the mount point.
+rm -f "${TARGET_DIR}"/boot/Image "${TARGET_DIR}"/boot/*.dtb
+# udev reads only the compiled hwdb.bin; the hwdb.d text sources exist to
+# rebuild it (systemd-hwdb update), which nothing on the device runs.
+rm -rf "${TARGET_DIR}/usr/lib/udev/hwdb.d"
+# font-awesome is a web-frontend package (svg/js/css/woff2); nothing on the
+# desktop references it and fontconfig cannot load woff2. The rm also guards
+# output dirs built before the package was dropped from the defconfig.
+rm -rf "${TARGET_DIR}/usr/share/font-awesome" \
+      "${TARGET_DIR}/usr/share/fonts/font-awesome"
+# Adwaita: the panel is 640x480, so icon sizes above 64 are never requested
+# (gtk-icon-theme-name=Adwaita). There is no SVG loader in the image (no
+# librsvg), so scalable/ never rendered anything. Cursors stay
+# (XCURSOR_THEME=Adwaita). icon-theme.cache is removed with the pruned dirs:
+# its stale entries would point at deleted files (GTK then scans the dirs).
+rm -rf "${TARGET_DIR}"/usr/share/icons/Adwaita/{8x8,96x96,256x256,512x512,scalable,scalable-up-to-32}
+rm -f "${TARGET_DIR}"/usr/share/icons/*/icon-theme.cache
+# Rockbox fonts: user call 2026-10-11 (Latin + Unifont). Drop the CJK
+# families (18M; "WenQangYi" is upstream's own spelling) but keep
+# 16-GNU-Unifont so CJK metadata still renders; all Latin fonts stay.
+# No shipped theme references the dropped families (verified).
+rm -f "${TARGET_DIR}"/usr/share/rockbox/fonts/*WenQangYi-* \
+      "${TARGET_DIR}"/usr/share/rockbox/fonts/*Sazanami-* \
+      "${TARGET_DIR}"/usr/share/rockbox/fonts/*Namil*
+# GTK ships per-language emoji-picker translations (23 files). The image
+# sets LANG=en_US.UTF-8 and the en/C emoji data is compiled into GTK
+# itself (there is no en.gresource), so every one of these is unused.
+# If more locales are ever generated (BR2_GENERATE_LOCALE), keep the
+# matching .gresource.
+rm -rf "${TARGET_DIR}"/usr/share/gtk-3.0/emoji
 
 # Upstream sshd_config has no Include; prepend it so sshd_config.d drop-ins
 # apply (sshd uses the first value it sees for each option)

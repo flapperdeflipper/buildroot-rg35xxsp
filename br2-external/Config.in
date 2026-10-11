@@ -10,6 +10,7 @@ menu "RGOS"
 		  kernel.
 
 	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-panel-firmware/Config.in"
+	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-bt-firmware/Config.in"
 	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-uboot-ddr3/Config.in"
 	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-suspend-stub/Config.in"
 	source "$BR2_EXTERNAL_RGOS_PATH/package/rgos-padsim/Config.in"

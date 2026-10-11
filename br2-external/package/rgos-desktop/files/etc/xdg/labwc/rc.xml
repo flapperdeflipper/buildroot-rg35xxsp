@@ -68,6 +68,11 @@
     <keybind key="W-Escape">
       <action name="Execute" command="rgos-power-menu" />
     </keybind>
+    <!-- Close the focused window: the exit path for fullscreen pad-nav
+         apps (padd's Menu button in nav mode sends Super+Q) -->
+    <keybind key="W-q">
+      <action name="Close" />
+    </keybind>
     <!-- Hardware keys -->
     <keybind key="XF86AudioRaiseVolume" allowWhenLocked="yes">
       <action name="Execute" command="rgos-volume up" />

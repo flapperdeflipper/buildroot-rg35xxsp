@@ -150,7 +150,6 @@ BR2_PACKAGE_MOUSEPAD=y
 
 # Fonts
 BR2_PACKAGE_DEJAVU=y
-BR2_PACKAGE_FONT_AWESOME=y
 
 # Filesystem image: read-only erofs root (p2), overlaid at boot with the
 # rgos-overlay partition (p3); /data (p4) is grown on first boot.

@@ -111,7 +111,9 @@ trap finish EXIT
 # Provision the boot partition like a real card: SSH key + a Wi-Fi network
 # ... and a blank second SD card (bin/qemu-sdcard pulls / inserts it)
 SDIMG="${STATE}/sdcard.img"
-rm -f "${SDIMG}" && mkdir -p "${STATE}" && truncate -s 256M "${SDIMG}"
+# 4G: big enough for the clone test (head 4M + boot 64M + erofs ~275M +
+# overlay 2G + data), sparse so it costs nothing on the host.
+rm -f "${SDIMG}" && mkdir -p "${STATE}" && truncate -s 4G "${SDIMG}"
 
 function start_vm() {
     RGOS_WIFI_PASSWORD="test pass 123" "${BASEDIR}/bin/run-qemu" --fresh --headless \
@@ -363,6 +365,13 @@ vm 'sudo -n /usr/libexec/rgos/battery-guard --once --psu-dir /tmp/psu'
 check "warning fires once per discharge (no repeat)" gui '! makoctl list | grep -q "Battery low"'
 vm 'echo Charging > /tmp/psu/bat0/status && sudo -n /usr/libexec/rgos/battery-guard --once --psu-dir /tmp/psu'
 check "charger re-arms the warning" vm 'sudo -n test ! -e /run/rgos-battery-warned'
+# Device-bug regression (AXP717): a FULL battery on AC reports the
+# two-word status "Not charging". The guard must treat it as
+# not-discharging (no low-battery warning); rgos-power joins the words
+# internally (battery_read one-word contract, device crash fix).
+vm 'echo "Not charging" > /tmp/psu/bat0/status && echo 100 > /tmp/psu/bat0/capacity && sudo -n rm -f /run/rgos-battery-warned'
+check "battery-guard: 'Not charging' at 100% -> no warning, no crash" vm 'sudo -n /usr/libexec/rgos/battery-guard --once --psu-dir /tmp/psu && sudo -n test ! -e /run/rgos-battery-warned'
+check "rgos-power joins multi-word battery statuses (fix in place)" vm 'grep -q "status=\"\${status// /_}\"" /usr/bin/rgos-power'
 vm 'sudo -n rm -rf /tmp/psu /run/rgos-battery-warned'
 check "sleep hook installed" vm 'test -x /usr/lib/systemd/system-sleep/rgos-power.sh'
 check "ac-profile is a no-op without profile_ac" vm 'sudo -n /usr/libexec/rgos/ac-profile'
@@ -426,8 +435,13 @@ check "Rockbox still running" running rockbox
 check "Rockbox config: starts in a music folder" vm 'grep -q "^start directory: .*Music/" ~/.config/rockbox.org/config.cfg'
 check "pad in nav mode while Rockbox runs" mode_is nav
 shot apps-rockbox
-PAD_SETTLE=1 pad tap BTN_SOUTH   # B = back (to the main menu, or quits nothing)
-vm 'pkill -x rockbox'
+PAD_SETTLE=1 pad tap BTN_SOUTH   # B = back (to the main menu)
+# Menu (tap) closes the focused window: the exit path for nav apps
+# (Rockbox's sdlapp build has no Quit item of its own)
+PAD_SETTLE=1 pad tap BTN_MODE
+for _ in $(seq 1 20); do vm pgrep -x rockbox >/dev/null || break; sleep 0.5; done
+check "Rockbox exits via Menu (labwc Close, Super+Q)" not_running rockbox
+vm 'pkill -x rockbox 2>/dev/null || true'
 # Rockbox saves its settings on exit; the launcher restores the mode after
 for _ in $(seq 1 10); do mode_is "${before_rockbox}" && break; sleep 0.5; done
 check "pad mode restored after Rockbox (${before_rockbox})" mode_is "${before_rockbox}"
@@ -512,6 +526,26 @@ check "card pulled while mounted: unmounted, no state" vm '! mountpoint -q /medi
 # 30 s; seen once, never reproduced in isolation (~1 s normally).
 for _ in $(seq 1 180); do vm 'mountpoint -q /media/sdcard' && break; sleep 0.5; done
 check "card inserted: checked and mounted again, file there" vm 'mountpoint -q /media/sdcard && grep -q hello /media/sdcard/Documents/test.txt'
+
+log "Second SD card: clone, backup, /data/config"
+# Clone: raw-copy the running system onto the second card (OS only).
+vm "sudo -n /usr/libexec/rgos/sdcard clone ${card}" >/dev/null 2>&1
+check "clone: four partitions on the second card" vm "lsblk -nlo NAME /dev/${card} | grep -c '${card}p[1-4]\$' | grep -q 4"
+check "clone: boot partition is RGOS-BOOT FAT" vm "test \"\$(blkid -o value -s LABEL /dev/${card}p1)\" = RGOS-BOOT && test \"\$(blkid -o value -s TYPE /dev/${card}p1)\" = vfat"
+check "clone: erofs root on p2" vm "test \"\$(blkid -o value -s TYPE /dev/${card}p2)\" = erofs"
+check "clone: p4 resized to fill the card" vm "test \$(lsblk -nlo SIZE /dev/${card}p4) != \$(lsblk -nlo SIZE /dev/${card}p3)"
+check "clone: card recognised as an RGOS system card" vm 'grep -q "^system" /run/rgos/sdcard'
+# Backup/restore of personal data needs a usable card again
+vm "sudo -n /usr/libexec/rgos/sdcard format ${card}" >/dev/null 2>&1
+for _ in $(seq 1 60); do vm 'mountpoint -q /media/sdcard' && break; sleep 0.5; done
+vm "sudo -n /usr/libexec/rgos/sdcard backup ${card} data" >/dev/null 2>&1
+check "backup: data archive on the card" vm 'ls /media/sdcard/rgos-data-*.tar.gz >/dev/null 2>&1'
+bak="$(vm 'ls /media/sdcard/rgos-data-*.tar.gz 2>/dev/null | tail -n1')"
+check "backup: archive lists /data/home and overlay upper" vm "tar -tzf '${bak}' | grep -q 'data/home/' && tar -tzf '${bak}' | grep -q 'overlay/upper/'"
+vm "sudo -n /usr/libexec/rgos/sdcard restore ${card} '${bak}'" >/dev/null 2>&1
+check "restore: data archive unpacks without error" vm "sudo -n tar -tzf '${bak}' >/dev/null 2>&1"
+check "/data/config overrides /etc/rgos (middle layer)" vm 'echo "warn_percent 42" | sudo -n tee /data/config/power.conf >/dev/null && test "$(rgos-power-conf warn_percent 10)" = 42 && sudo -n rm /data/config/power.conf'
+check "config layer falls back to /etc/rgos" vm 'test "$(rgos-power-conf warn_percent 10)" = 10'
 
 log "Suspend (last: QEMU's display stays blank after s2idle)"
 # Suspend (s2idle) through rgos-power, woken by an RTC alarm 6 s later.

@@ -71,7 +71,8 @@ def test_sudo_without_password(host):
 def test_ssh_key_imported(host):
     keys = host.file("/etc/ssh/authorized_keys/user")
     assert keys.exists
-    assert len(keys.content_string.strip().splitlines()) == 1
+    # one line per provisioned key (flash.sh accepts several --key)
+    assert len(keys.content_string.strip().splitlines()) >= 1
 
 
 def test_boot_partition_readme(host):

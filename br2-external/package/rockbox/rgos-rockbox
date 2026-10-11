@@ -2,7 +2,9 @@
 # Start Rockbox full screen (320x240 build shown 2x on 640x480; labwc's
 # window rule for app id "rockbox" makes it full screen) with the pad in
 # nav mode: d-pad = arrows, A = OK, B = back, X = menu, Y = play/pause,
-# L1/R1 = previous/next. The pad mode is restored when Rockbox exits.
+# L1/R1 = previous/next, Menu (tap) closes Rockbox (this sdlapp build
+# has no Quit item of its own). The pad mode is restored when Rockbox
+# exits.
 set -u
 mode_file="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/rgos-padd.mode"
 prev="$(cat "${mode_file}" 2>/dev/null || echo mouse)"

@@ -1,9 +1,11 @@
 #!/bin/bash
 # Print one setting from /etc/rgos/power.conf, overridden by
-# ~/.config/rgos/power.conf:  rgos-power-conf <key> [default]
+# /data/config/power.conf (persists across image updates and works for
+# root services too) and ~/.config/rgos/power.conf:
+#   rgos-power-conf <key> [default]
 set -u
 key="$1" value=""
-for f in /etc/rgos/power.conf "${HOME:-/root}/.config/rgos/power.conf"; do
+for f in /etc/rgos/power.conf /data/config/power.conf "${HOME:-/root}/.config/rgos/power.conf"; do
     [[ -r "${f}" ]] || continue
     line="$(grep -E "^[[:space:]]*${key}[[:space:]]*=" "${f}" | tail -n1)"
     [[ -n "${line}" ]] && value="$(sed -E 's/^[^=]*=[[:space:]]*//; s/[[:space:]]*(#.*)?$//' <<<"${line}")"

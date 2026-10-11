@@ -1,0 +1,12 @@
+config BR2_PACKAGE_RGOS_BT_FIRMWARE
+	bool "rgos-bt-firmware"
+	depends on BR2_PACKAGE_LINUX_FIRMWARE_RTL_88XX_BT
+	help
+	  RTL8821CS Bluetooth config blob for the H700 handhelds. Current
+	  linux-firmware releases ship only rtl8821cs_fw.bin, but the
+	  kernel's btrtl driver still requires rtl8821cs_config.bin
+	  (mandatory; without it hci0 fails with out-of-order packets).
+	  Taken from the last linux-firmware release that carried the
+	  file, the same provenance ROCKNIX uses for this device.
+
+	  https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git

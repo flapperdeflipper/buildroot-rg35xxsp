@@ -18,7 +18,10 @@ if [[ ! -e "${cfg}" && -e /etc/rgos/retroarch.cfg.defaults ]]; then
 fi
 
 rgos-padctl mode passthrough 2>/dev/null
-systemd-run --user --quiet --collect --slice=games.slice --same-dir \
+# --wait: stay in the foreground until the game exits, so the pad mode
+# is restored when it actually ends (plain systemd-run returns right
+# after the unit starts)
+systemd-run --user --wait --quiet --collect --slice=games.slice --same-dir \
     --setenv=MESA_EXTENSION_OVERRIDE="-GL_OES_copy_image -GL_EXT_copy_image -GL_NV_copy_image -GL_ARB_copy_image" \
     -- "$@"
 rc=$?

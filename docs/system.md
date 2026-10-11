@@ -51,6 +51,29 @@ Notes on the design:
   erofs side wholesale, and a stale inode index would fail the mount.
 - `/home` and `/data` are real mounts, not symlinks.
 
+### Copying and backing up the system
+
+The SD card menu on a second card offers three operations beyond Format:
+
+- **Clone RGOS to it** copies the running system onto the second card:
+  boot chain, boot partition and OS, with an empty overlay and data
+  partition. The clone boots on any RG35XX SP and asks for its own
+  provisioning on first boot. Personal files are not copied.
+- **Backup** writes either the whole card (compressed image) or just the
+  personal data and settings (`/data` plus the system configuration
+  layer) as files onto the second card.
+- **Restore** puts a backup back. A full image goes onto the second
+  card, which you then swap into the system slot. A data backup unpacks
+  onto the running system and asks for a reboot.
+
+### Persistent system configuration
+
+Tools read their settings in this order, later wins: the defaults in
+`/etc/rgos`, then `/data/config`, then the user's `~/.config/rgos`.
+Put overrides in `/data/config/<tool>.conf` to keep them across OS
+updates without editing the read-only image. The power stack honours
+this today; other tools follow.
+
 ## Desktop and input
 
 The desktop is labwc (a Wayland compositor) with an sfwbar panel showing

@@ -152,9 +152,129 @@ format() {
     log "/dev/${disk} formatted and mounted"
 }
 
+# Partition geometry of a disk, straight from its MBR (sectors):
+#   part_start <disk> <n>, part_size <disk> <n>
+# sfdisk pads the value into the field after "start=" / "size="
+part_start() {
+    sfdisk --dump "/dev/$1" 2>/dev/null | awk -v p="$2" '
+        index($0, "p" p " : ") {
+            for (i = 1; i < NF; i++) if ($i == "start=") { gsub(/,/, "", $(i + 1)); print $(i + 1); exit }
+        }'
+}
+part_size() {
+    sfdisk --dump "/dev/$1" 2>/dev/null | awk -v p="$2" '
+        index($0, "p" p " : ") {
+            for (i = 1; i < NF; i++) if ($i == "size=") { gsub(/,/, "", $(i + 1)); print $(i + 1); exit }
+        }'
+}
+
+stop_card_units() {   # unmount everything RGOS manages from this disk
+    local disk="$1" unit
+    for unit in $(systemctl list-units --plain --no-legend "rgos-sdcard@${disk}*" | awk '{ print $1 }'); do
+        systemctl stop "${unit}"
+    done
+    mountpoint -q "${MNT}" && umount "${MNT}"
+    udevadm settle
+}
+
+clone() {   # clone <disk>: this device's OS (no personal data) onto the card
+    local disk="${1#/dev/}" src s1 s2 s3 s4
+    [[ "${disk}" =~ ^mmcblk[0-9]+$ && -b "/dev/${disk}" ]] || { log "not an SD card: ${disk}"; exit 2; }
+    [[ "${disk}" == "$(root_disk)" ]] && { log "refusing to clone onto the system card"; exit 2; }
+    src="$(root_disk)"
+    [[ -n "${src}" && -b "/dev/${src}" ]] || { log "cannot find the system card"; exit 2; }
+
+    s1="$(part_start "${src}" 1)"; s2="$(part_start "${src}" 2)"
+    s3="$(part_start "${src}" 3)"; s4="$(part_start "${src}" 4)"
+    [[ "${s1}" && "${s2}" && "${s3}" && "${s4}" ]] || { log "cannot read the system card layout"; exit 2; }
+
+    # The card must fit the copied layout through p3 (p4 is resized to
+    # fill, but needs at least 256 MiB of its own)
+    local disk_sectors p3_end
+    disk_sectors="$(blockdev --getsz "/dev/${disk}")"
+    p3_end=$(( s4 - 1 ))
+    if (( disk_sectors < p3_end + 512 * 1024 )); then
+        log "target card too small: need $(( (p3_end + 512 * 1024) / 2048 )) MiB, have $(( disk_sectors / 2048 )) MiB"
+        notify "Card too small to clone" "Use a bigger SD card" dialog-warning
+        exit 2
+    fi
+
+    stop_card_units "${disk}"
+
+    log "cloning /dev/${src} -> /dev/${disk} (boot chain, OS, empty data)"
+    # Everything before p1 holds the MBR and the raw SPL at 8 KiB
+    dd if="/dev/${src}" of="/dev/${disk}" bs=1M count=$(( s1 / 2048 )) conv=fsync status=none || exit 1
+    dd if="/dev/${src}p1" of="/dev/${disk}p1" conv=fsync status=none || exit 1
+    dd if="/dev/${src}p2" of="/dev/${disk}p2" conv=fsync status=none || exit 1
+
+    # The copied table carries this card's grown p4; size it to the target
+    # card instead (fresh p4 grows on the clone's first boot, like a flash)
+    sfdisk --quiet --no-reread -N 4 "/dev/${disk}" <<<"start=${s4}, size=+, type=83" || exit 1
+    blockdev --rereadpt "/dev/${disk}" 2>/dev/null || true
+    udevadm settle
+    mkfs.ext4 -q -F "/dev/${disk}p3" || exit 1
+    mkfs.ext4 -q -F "/dev/${disk}p4" || exit 1
+    sync
+    log "clone written: /dev/${disk} boots this OS with empty data"
+    notify "Clone ready" "The SD card now boots this OS, no personal data" media-flash
+}
+
+backup() {  # backup <disk> full|data -> file on the mounted card
+    local disk="${1#/dev/}" mode="${2:?full|data}" src file ts
+    src="$(root_disk)"
+    [[ -n "${src}" && "${disk}" != "${src}" ]] || { log "backup: no second card"; exit 2; }
+    mountpoint -q "${MNT}" || { log "backup: second card not mounted"; exit 2; }
+    ts="$(date +%Y%m%d-%H%M)"
+    case "${mode}" in
+        full)
+            file="${MNT}/rgos-backup-${ts}.img.gz"
+            log "full backup of /dev/${src} -> ${file}"
+            dd if="/dev/${src}" bs=1M status=none | gzip -1 >"${file}" || { rm -f "${file}"; exit 1; }
+            ;;
+        data)
+            file="${MNT}/rgos-data-${ts}.tar.gz"
+            log "data backup (/data + system config) -> ${file}"
+            tar -czf "${file}" --numeric-owner -C / data/home data/config \
+                mnt/overlay/upper 2>/dev/null || { rm -f "${file}"; exit 1; }
+            ;;
+        *)  log "backup: unknown mode ${mode}"; exit 2 ;;
+    esac
+    sync
+    log "backup written: ${file}"
+    notify "Backup ready" "$(basename "${file}")" media-flash
+}
+
+restore() { # restore <disk> <file>: full image -> the second card; data -> this system
+    local disk="${1#/dev/}" file="$2" mode
+    [[ -f "${file}" ]] || { log "restore: no such file: ${file}"; exit 2; }
+    case "${file}" in
+        *.img.gz)
+            [[ "${disk}" =~ ^mmcblk[0-9]+$ && "${disk}" != "$(root_disk)" ]] || { log "restore: target must be the second card"; exit 2; }
+            stop_card_units "${disk}"
+            log "restoring ${file} -> /dev/${disk}"
+            gzip -dc "${file}" | dd of="/dev/${disk}" bs=1M conv=fsync status=none || exit 1
+            sync
+            log "restore done: /dev/${disk} is a full copy (swap cards to boot it)"
+            notify "Restore done" "The SD card is a full copy; swap cards to boot it" media-flash
+            ;;
+        *rgos-data-*.tar.gz)
+            [[ "${file}" == "${MNT}"/* || -f "${file}" ]] || { log "restore: not on the second card"; exit 2; }
+            log "restoring data from ${file}"
+            tar -xzf "${file}" --numeric-owner -C / || exit 1
+            sync
+            log "data restored; a reboot applies it cleanly"
+            notify "Data restored" "Reboot to apply everything" media-flash
+            ;;
+        *)  log "restore: not a backup file: ${file}"; exit 2 ;;
+    esac
+}
+
 case "${1:-}" in
-    add)    add "${2:?device}" ;;
-    remove) remove "${2:?device}" ;;
-    format) format "${2:?disk}" ;;
-    *)      echo "usage: $0 add|remove <dev> | format <disk>" >&2; exit 2 ;;
+    add)     add "${2:?device}" ;;
+    remove)  remove "${2:?device}" ;;
+    format)  format "${2:?disk}" ;;
+    clone)   clone "${2:?disk}" ;;
+    backup)  backup "${2:?disk}" "${3:?full|data}" ;;
+    restore) restore "${2:?disk}" "${3:?file}" ;;
+    *)       echo "usage: $0 add|remove <dev> | format|clone <disk> | backup <disk> full|data | restore <disk> <file>" >&2; exit 2 ;;
 esac

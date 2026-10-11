@@ -6,7 +6,14 @@
 set -u
 
 conf() { rgos-power-conf "$@"; }
-rtc=/sys/class/rtc/rtc0
+# The wake-capable RTC: QEMU has exactly one (pl031, rtc0); the device has
+# two, rtc0 = pcf8563 (no wakealarm) and rtc1 = sun6i (the alarmtimer wake
+# source). Pick the first RTC with a writable wakealarm instead of a
+# hardwired index.
+rtc=""
+for d in /sys/class/rtc/rtc*; do
+    [[ -w "${d}/wakealarm" ]] && rtc="${d}" && break
+done
 wd_file=/run/rgos-suspend-watchdog
 leds_file=/run/rgos-suspend-leds
 
@@ -46,8 +53,12 @@ pre() {
     # Never touch an alarm somebody else set (e.g. a test or the user).
     rm -f "${wd_file}"
     mins="$(conf suspend_poweroff_min 0)"
-    if [[ "${mins}" =~ ^[1-9][0-9]*$ && -w "${rtc}/wakealarm" && "$(cat "${rtc}/wakealarm" 2>/dev/null || echo 0)" == 0 ]]; then
-        alarm=$(( $(date +%s) + mins * 60 ))
+    if [[ "${mins}" =~ ^[1-9][0-9]*$ && -n "${rtc}" && "$(cat "${rtc}/wakealarm" 2>/dev/null || echo 0)" == 0 ]]; then
+        # The alarm goes in the wake RTC's own time frame, which can be
+        # off by years (userspace only syncs rtc0). since_epoch is that
+        # frame's "now"; no hwclock needed (it can block on VM RTCs).
+        now_rtc="$(cat "${rtc}/since_epoch" 2>/dev/null || date +%s)"
+        alarm=$(( now_rtc + mins * 60 ))
         echo 0 > "${rtc}/wakealarm"
         echo "${alarm}" > "${rtc}/wakealarm" 2>/dev/null || true
         echo "${alarm}" > "${wd_file}"
@@ -73,8 +84,10 @@ post() {
     if [[ -r "${wd_file}" ]]; then
         wd="$(cat "${wd_file}")"
         rm -f "${wd_file}"
-        [[ -w "${rtc}/wakealarm" ]] && echo 0 > "${rtc}/wakealarm" 2>/dev/null || true
-        if (( $(date +%s) >= wd - 2 )); then
+        [[ -n "${rtc}" && -w "${rtc}/wakealarm" ]] && echo 0 > "${rtc}/wakealarm" 2>/dev/null || true
+        # Compare in the wake RTC's frame (the alarm was armed there)
+        now_rtc="$(cat "${rtc}/since_epoch" 2>/dev/null || date +%s)"
+        if (( now_rtc >= wd - 2 )); then
             logger -t rgos-power "suspend watchdog fired after ${wd}: powering off"
             systemctl --no-block poweroff
         fi

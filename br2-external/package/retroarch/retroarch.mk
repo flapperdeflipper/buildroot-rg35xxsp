@@ -23,6 +23,7 @@ RETROARCH_CONF_OPTS = \
 	--enable-egl \
 	--enable-opengles \
 	--enable-opengl \
+	--disable-opengl1 \
 	--enable-alsa \
 	--enable-freetype \
 	--enable-udev \
@@ -45,8 +46,6 @@ RETROARCH_CONF_OPTS = \
 	--disable-wayland \
 	--disable-vulkan \
 	--disable-kms \
-	--disable-drm \
-	--disable-gbm \
 	--disable-pulse \
 	--disable-pipewire \
 	--disable-jack \
@@ -68,8 +67,15 @@ RETROARCH_CONF_OPTS = \
 	--disable-slang \
 	--disable-angle
 
+# qb (RetroArch's configure) shells out to plain `pkg-config`, so it needs
+# the target staging sysroot pointed at explicitly, like Buildroot's own
+# configure infrastructure does; without this every package check reads
+# "no" and forced deps (alsa) abort the configure.
 define RETROARCH_CONFIGURE_CMDS
 	cd "$(@D)" && $(TARGET_CONFIGURE_OPTS) $(TARGET_MAKE_ENV) \
+		PKG_CONFIG="$(PKG_CONFIG_HOST_BINARY)" \
+		PKG_CONFIG_SYSROOT_DIR="$(STAGING_DIR)" \
+		PKG_CONFIG_LIBDIR="$(STAGING_DIR)/usr/lib/pkgconfig:$(STAGING_DIR)/usr/share/pkgconfig" \
 		./configure $(RETROARCH_CONF_OPTS)
 endef
 

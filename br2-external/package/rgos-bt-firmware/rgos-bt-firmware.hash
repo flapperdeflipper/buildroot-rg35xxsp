@@ -1,0 +1,4 @@
+# Locally computed
+sha256  88d46c543847ee3b03404d4941d91c92974690ee1f6fdcbee9cef3e5f97db688  linux-firmware-20230804.tar.xz
+# rtl8821cs_config.bin inside the tarball, for reference:
+# 6ddeb15f23588053e00cb08d25588bd7cf98d60fa93d9478efcef4ae8064a7ac

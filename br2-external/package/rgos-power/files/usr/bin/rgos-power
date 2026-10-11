@@ -36,6 +36,10 @@ battery_read() {
     [[ -n "${d}" ]] || { echo "- none 0"; return; }
     pct="$(cat "${d}/capacity" 2>/dev/null || echo -)"
     status="$(cat "${d}/status" 2>/dev/null || echo Unknown)"
+    # Kernel statuses can be multi-word ("Not charging" at full while
+    # plugged in). Keep the one-word-per-field contract: every consumer
+    # reads this with `read -r pct status uw`.
+    status="${status// /_}"
     if [[ -r "${d}/power_now" ]]; then
         uw="$(cat "${d}/power_now")"
     else
@@ -217,7 +221,7 @@ shift || true
 case "${cmd}" in
     status)
         read -r pct status uw < <(battery_read)
-        printf 'battery   %s%% (%s)\n' "${pct}" "${status}"
+        printf 'battery   %s%% (%s)\n' "${pct}" "${status//_/ }"
         printf 'power     %s W%s\n' "$(watts "${uw}")" "$([[ "${uw}" -lt 0 ]] && echo ' charging')"
         tl="$(time_left "${pct}" "${uw}")"; [[ -n "${tl}" ]] && printf 'time left %s\n' "${tl}"
         printf 'wifi      %s\nbluetooth %s\nprofile   %s\n' "$(radio wifi)" "$(radio bluetooth)" "$(profile_current)"
