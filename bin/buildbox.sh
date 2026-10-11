@@ -284,7 +284,9 @@ function cmd_fetch() {
     local dir="${BASEDIR}/artifacts/${board}" img stamp i
     mkdir -p "${dir}"
     # Keep the previous images (rollback, diffing): history/<time>/, last 3
-    img="$(ls "${dir}"/*.img.gz 2>/dev/null | head -n1)"
+    # (|| true: on a first fetch into an empty dir the glob fails and
+    # set -e + pipefail would abort the script right here)
+    img="$(ls "${dir}"/*.img.gz 2>/dev/null | head -n1 || true)"
     if [[ -n "${img}" ]]; then
         stamp="$(date -r "${img}" +%Y%m%d-%H%M)"
         if [[ ! -d "${dir}/history/${stamp}" ]]; then
