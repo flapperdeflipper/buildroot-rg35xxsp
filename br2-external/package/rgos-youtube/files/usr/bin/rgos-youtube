@@ -8,6 +8,13 @@
 #   results=20         number of search results
 set -u
 
+if [[ "${1:-}" == "update" ]]; then
+    # Menu entry "Update yt-dlp": fetch the current release (root helper)
+    sudo -n /usr/libexec/rgos/ytupdate
+    [[ -t 0 ]] && read -r -p "Press Enter "
+    exit $?
+fi
+
 conf() {
     local v
     v="$(sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "${HOME}/.config/rgos/youtube.conf" 2>/dev/null | tail -n1)"
@@ -15,8 +22,8 @@ conf() {
 }
 max_height="$(conf max_height 480)"
 results="$(conf results 20)"
-# H.264 first, then VP9: cheapest to decode on the A53 cores (and ffmpeg
-# here has no software AV1 decoder, dav1d); else anything within the cap.
+# H.264 first, then VP9: cheapest to decode on the A53 cores. AV1 also
+# decodes (dav1d, software) if it is the only thing available.
 h="[height<=${max_height}]"
 format="bv*${h}[vcodec^=avc1]+ba/bv*${h}[vcodec^=vp9]+ba/b${h}/bv*${h}+ba/b"
 
@@ -45,7 +52,7 @@ while :; do
     kill "${waitpid}" 2>/dev/null
 
     if [[ ${#rows[@]} -eq 0 ]]; then
-        note "Nothing found (or no network)"
+        note "Nothing found. No network? Or YouTube broke: Update yt-dlp"
         continue
     fi
 

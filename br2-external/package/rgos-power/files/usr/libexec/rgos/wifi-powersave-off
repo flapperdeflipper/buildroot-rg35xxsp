@@ -1,0 +1,13 @@
+#!/bin/bash
+# Wi-Fi power save off (deliberate: the SDIO rtw88 chip trades little
+# battery for big latency spikes). Idempotent, best effort; called when a
+# wireless interface appears (udev), on `rgos-power wifi on|toggle`, and
+# after resume.
+set -u
+dev="$(iw dev 2>/dev/null | awk '$1=="Interface" {print $2; exit}')" || exit 0
+[[ -n "${dev}" ]] || exit 0
+if [[ "$(id -u)" -eq 0 ]]; then
+    iw dev "${dev}" set power_save off
+else
+    sudo -n iw dev "${dev}" set power_save off
+fi >/dev/null 2>&1 || true

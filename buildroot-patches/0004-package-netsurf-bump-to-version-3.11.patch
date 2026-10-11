@@ -1,0 +1,127 @@
+From: RGOS <noreply@localhost>
+Subject: [PATCH] package/netsurf: bump to version 3.11
+
+Upstream never bumped past 3.10; release notes:
+https://www.netsurf-browser.org/about/netsurf-3.11.html
+netsurf/COPYING is unchanged (hash kept). Rebased or dropped BR package
+patches for 3.11:
+- 0001-avoid-system-perl-dependencies: dropped, 3.11 no longer ships
+  utils/split-messages.pl
+- 0003-fix-compilation-without-curl: rebased, the fetcher includes moved
+  (about/about.h, file/file.h); the WITH_CURL guard is still needed
+- 0004-framebuffer-GCC-10-font: dropped, the fix is upstream in 3.11
+  (convert_font.c now lives in tools/)
+---
+ package/netsurf/0001-avoid-system-perl-dependencies.patch | 29 -----------------------------
+ package/netsurf/0003-fix-compilation-without-curl.patch   |  4 ++--
+ package/netsurf/0004-framebuffer-Fix-internal-font-generated-source-for-GCC-10.patch | 37 -----------------------------
+ package/netsurf/netsurf.hash                              |  2 +-
+ package/netsurf/netsurf.mk                                |  2 +-
+ 5 files changed, 2 insertions(+), 70 deletions(-)
+
+--- a/package/netsurf/0001-avoid-system-perl-dependencies.patch
++++ /dev/null
+@@ -1,29 +0,0 @@
+-From b42e4b5bfca030965dcfca993a47a6ddaa941287 Mon Sep 17 00:00:00 2001
+-From: Francois Perrad <francois.perrad@gadz.org>
+-Date: Sun, 25 Nov 2018 18:27:54 +0100
+-Subject: [PATCH] avoid system perl dependencies
+-
+-this subroutine format is used for android target.
+-with eval the load of HTML::Entities is deferred.
+-
+-Signed-off-by: Francois Perrad <francois.perrad@gadz.org>
+----
+- netsurf/utils/split-messages.pl | 2 +-
+- 1 file changed, 1 insertion(+), 1 deletion(-)
+-
+-diff --git a/netsurf/utils/split-messages.pl b/netsurf/utils/split-messages.pl
+-index 4b50dde..e47dded 100644
+---- a/netsurf/utils/split-messages.pl
+-+++ b/netsurf/utils/split-messages.pl
+-@@ -311,7 +311,7 @@ TXT
+-     sub footer { qq|</resources>| }
+-     sub format
+-     {
+--	use HTML::Entities qw(encode_entities);
+-+	eval q|use HTML::Entities qw(encode_entities);|;
+- 	my $escaped = encode_entities( $_[1], '<>&"' );
+- 	qq|  <string name="$_[0]">$escaped</string>\n|;
+-     }
+--- 
+-2.17.1
+-
+--- a/package/netsurf/0003-fix-compilation-without-curl.patch
++++ b/package/netsurf/0003-fix-compilation-without-curl.patch
+@@ -15,9 +15,9 @@
+  #include "content/fetchers.h"
+  #include "content/fetchers/resource.h"
+- #include "content/fetchers/about.h"
++ #include "content/fetchers/about/about.h"
+ +#ifdef WITH_CURL
+  #include "content/fetchers/curl.h"
+ +#endif
+  #include "content/fetchers/data.h"
+- #include "content/fetchers/file.h"
++ #include "content/fetchers/file/file.h"
+  #include "javascript/fetcher.h"
+
+--- a/package/netsurf/0004-framebuffer-Fix-internal-font-generated-source-for-GCC-10.patch
++++ /dev/null
+@@ -1,37 +0,0 @@
+-From 434f6c3fe7d1d2c6a3e6ae6338608a4a4421ab1b Mon Sep 17 00:00:00 2001
+-From: Michael Drake <michael.drake@codethink.co.uk>
+-Date: Fri, 13 Nov 2020 11:12:58 +0000
+-Subject: framebuffer: Fix internal font generated source for GCC 10.
+-
+-[Retrieved (and backported) from:
+-https://git.netsurf-browser.org/netsurf.git/commit/?id=434f6c3fe7d1d2c6a3e6ae6338608a4a4421ab1b]
+-Signed-off-by: Fabrice Fontaine <fontaine.fabrice@gmail.com>
+----
+- tools/convert_font.c | 6 +++---
+- 1 file changed, 3 insertions(+), 3 deletions(-)
+-
+-diff --git a/netsurf/frontends/framebuffer/convert_font.c b/netsurf/frontends/framebuffer/convert_font.c
+-index 9f5734b71..d22c85920 100644
+---- a/netsurf/frontends/framebuffer/convert_font.c
+-+++ b/netsurf/frontends/framebuffer/convert_font.c
+-@@ -290,14 +290,14 @@ static bool generate_font_header(const char *path, struct font_data *data)
+- 
+- 
+- 	for (s = 0; s < 4; s++) {
+--		fprintf(fp, "const uint8_t *%s_section_table;\n",
+-+		fprintf(fp, "extern const uint8_t *%s_section_table;\n",
+- 			var_lables[s]);
+--		fprintf(fp, "const uint16_t *%s_sections;\n",
+-+		fprintf(fp, "extern const uint16_t *%s_sections;\n",
+- 			var_lables[s]);
+- 
+- 	}
+- 
+--	fprintf(fp, "const uint8_t *font_glyph_data;\n");
+-+	fprintf(fp, "extern const uint8_t *font_glyph_data;\n");
+- 
+- 	fprintf(fp, "\n\n");
+- 
+--- 
+-cgit v1.2.1
+-
+
+--- a/package/netsurf/netsurf.mk
++++ b/package/netsurf/netsurf.mk
+@@ -4,7 +4,7 @@
+ #
+ ################################################################################
+ 
+-NETSURF_VERSION = 3.10
++NETSURF_VERSION = 3.11
+ NETSURF_SOURCE = netsurf-all-$(NETSURF_VERSION).tar.gz
+ NETSURF_SITE = http://download.netsurf-browser.org/netsurf/releases/source-full
+ NETSURF_LICENSE = GPL-2.0
+--- a/package/netsurf/netsurf.hash
++++ b/package/netsurf/netsurf.hash
+@@ -1,3 +1,3 @@
+ # Locally computed
+-sha256  495adf6b6614ce36fca6c605f7c321f9cb4a3df838043158122678ce2b3325b7  netsurf-all-3.10.tar.gz
++sha256  4dea880ff3c2f698bfd62c982b259340f9abcd7f67e6c8eb2b32c61f71644b7b  netsurf-all-3.11.tar.gz
+ sha256  55c4a7ae3953d720a462e69d1f128a20004933d12538be5314a33f8821675378  netsurf/COPYING

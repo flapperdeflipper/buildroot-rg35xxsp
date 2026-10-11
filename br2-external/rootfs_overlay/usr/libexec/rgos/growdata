@@ -1,0 +1,17 @@
+#!/bin/bash
+# Grow the data partition (p4, /data) and its ext4 filesystem to fill the
+# SD card. Runs once on first boot (rgos-growdata.service); the erofs root
+# and the overlay partition stay at their image sizes.
+set -e -u -o pipefail
+
+data_dev="$(findmnt -n -o SOURCE /data)"
+part="$(basename "${data_dev}")"
+disk="$(basename "$(readlink -f "/sys/class/block/${part}/..")")"
+partnum="$(cat "/sys/class/block/${part}/partition")"
+
+echo "Growing /dev/${disk} partition ${partnum} (${data_dev}) to the end of the card"
+echo ",+" | sfdisk --no-reread --no-tell-kernel -N "${partnum}" "/dev/${disk}"
+partx -u -n "${partnum}" "/dev/${disk}"
+resize2fs "${data_dev}"
+
+touch /data/.grown

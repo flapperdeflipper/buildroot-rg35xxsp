@@ -152,14 +152,11 @@ BR2_PACKAGE_MOUSEPAD=y
 BR2_PACKAGE_DEJAVU=y
 BR2_PACKAGE_FONT_AWESOME=y
 
-# Filesystem image
-BR2_TARGET_ROOTFS_EXT2=y
-BR2_TARGET_ROOTFS_EXT2_4=y
-BR2_TARGET_ROOTFS_EXT2_LABEL="rgos-root"
-# Sized to the contents (~380 MiB) plus headroom, so the image stays small
-# and quick to flash; the first boot grows it to fill the card.
-BR2_TARGET_ROOTFS_EXT2_SIZE="1024M"
-BR2_TARGET_ROOTFS_EXT2_RESBLKS=1
+# Filesystem image: read-only erofs root (p2), overlaid at boot with the
+# rgos-overlay partition (p3); /data (p4) is grown on first boot.
+# BR2_TARGET_ROOTFS_EROFS_SIZE is auto (fits contents, padded to 4 KiB).
+BR2_TARGET_ROOTFS_EROFS=y
+BR2_TARGET_ROOTFS_EROFS_LZ4HC=y
 # BR2_TARGET_ROOTFS_TAR is not set
 
 # Host tools for image assembly
@@ -219,6 +216,8 @@ BR2_PACKAGE_PYTHON3_PYEXPAT=y
 BR2_PACKAGE_FFMPEG=y
 BR2_PACKAGE_FFMPEG_GPL=y
 BR2_PACKAGE_FFMPEG_SWSCALE=y
+# AV1 decode: YouTube serves some videos AV1-only
+BR2_PACKAGE_DAV1D=y
 BR2_PACKAGE_MPV=y
 # Web browser (light)
 BR2_PACKAGE_NETSURF=y
@@ -226,6 +225,8 @@ BR2_PACKAGE_NETSURF_GTK3=y
 # Own packages (br2-external/package)
 BR2_PACKAGE_GEANY=y
 BR2_PACKAGE_WEECHAT=y
+# IRC with a GUI (WeeChat stays: IRC in the terminal)
+BR2_PACKAGE_SRAIN=y
 BR2_PACKAGE_YT_DLP=y
 BR2_PACKAGE_RGOS_YOUTUBE=y
 BR2_PACKAGE_BTOP=y

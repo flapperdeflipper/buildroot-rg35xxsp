@@ -1,0 +1,27 @@
+From: RGOS <noreply@localhost>
+Subject: [PATCH] package/glib-networking: keep TLS on the openssl backend only
+
+libsoup3's https support selects gnutls, so glib-networking builds its
+gnutls backend next to openssl; the backend's test binary references
+gnutls_pkcs11_* symbols that Buildroot's gnutls (built without p11-kit)
+does not provide, and the link fails. Always disable the gnutls backend:
+TLS goes through openssl, which is already in the image (OpenSSH).
+gnutls itself stays for its direct users.
+---
+ package/glib-networking/glib-networking.mk | 6 +-----
+ 1 file changed, 1 insertion(+), 5 deletions(-)
+
+--- a/package/glib-networking/glib-networking.mk
++++ b/package/glib-networking/glib-networking.mk
+@@ -23,10 +23,5 @@ GLIB_NETWORKING_LICENSE_FILES = COPYING
+ GLIB_NETWORKING_CPE_ID_VENDOR = gnome
+ 
+-ifeq ($(BR2_PACKAGE_GNUTLS),y)
+-GLIB_NETWORKING_DEPENDENCIES += gnutls
+-GLIB_NETWORKING_CONF_OPTS += -Dgnutls=enabled
+-else
+ GLIB_NETWORKING_CONF_OPTS += -Dgnutls=disabled
+-endif
+ 
+ ifeq ($(BR2_PACKAGE_LIBOPENSSL),y)
+ GLIB_NETWORKING_DEPENDENCIES += openssl

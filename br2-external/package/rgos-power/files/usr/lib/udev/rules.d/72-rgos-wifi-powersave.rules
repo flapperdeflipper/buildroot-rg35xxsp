@@ -1,0 +1,3 @@
+# Wi-Fi power save off whenever a wireless interface appears (boot, resume,
+# driver reload): /usr/libexec/rgos/wifi-powersave-off
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="wlan*|wlp*", RUN+="/usr/libexec/rgos/wifi-powersave-off"

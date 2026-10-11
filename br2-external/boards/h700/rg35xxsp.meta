@@ -1,8 +1,8 @@
 # shellcheck shell=bash
 # Board metadata, sourced by boards/scripts/post-image.sh.
 BOARD_IMAGE_BASENAME="rgos-rg35xxsp"
-BOARD_DTBS="sun50i-h700-anbernic-rg35xx-sp.dtb sun50i-h700-anbernic-rg35xx-sp-v2-panel.dtb"
+BOARD_DTBS="sun50i-h700-anbernic-rg35xx-sp.dtb sun50i-h700-anbernic-rg35xx-sp-v2-panel.dtb sun50i-h700-anbernic-rg35xx-2024.dtb sun50i-h700-anbernic-rg35xx-plus.dtb sun50i-h700-anbernic-rg35xx-h.dtb"
 BOARD_DISK_SIGNATURE="0x52473335"
-BOARD_CMDLINE="root=PARTUUID=52473335-02 rootwait rw console=ttyS0,115200 console=tty1 quiet loglevel=3"
+BOARD_CMDLINE="root=PARTUUID=52473335-02 rootwait ro console=ttyS0,115200 console=tty1 quiet loglevel=3"
 # One image per DRAM type: "<SPL in images dir>:<image name suffix>"
 BOARD_SPL_VARIANTS="u-boot-sunxi-with-spl.bin: u-boot-sunxi-with-spl-lpddr3.bin:-lpddr3"

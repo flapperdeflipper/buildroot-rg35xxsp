@@ -9,11 +9,37 @@ TIMEOUT 0
 LABEL rgos
   MENU LABEL RGOS (RG35XX SP, v2 panel)
   LINUX /Image
+  INITRD /initramfs.cpio.gz
   FDT /sun50i-h700-anbernic-rg35xx-sp-v2-panel.dtb
   APPEND #CMDLINE#
 
 LABEL rgos-v1
   MENU LABEL RGOS (RG35XX SP, original panel)
   LINUX /Image
+  INITRD /initramfs.cpio.gz
   FDT /sun50i-h700-anbernic-rg35xx-sp.dtb
+  APPEND #CMDLINE#
+
+# Sibling models, same SoC and panel family (their panel firmware ships in
+# the image). Not default: boot them by interrupting U-Boot or editing
+# DEFAULT above. Untested on hardware so far.
+LABEL rgos-2024
+  MENU LABEL RGOS (RG35XX 2024)
+  LINUX /Image
+  INITRD /initramfs.cpio.gz
+  FDT /sun50i-h700-anbernic-rg35xx-2024.dtb
+  APPEND #CMDLINE#
+
+LABEL rgos-plus
+  MENU LABEL RGOS (RG35XX Plus)
+  LINUX /Image
+  INITRD /initramfs.cpio.gz
+  FDT /sun50i-h700-anbernic-rg35xx-plus.dtb
+  APPEND #CMDLINE#
+
+LABEL rgos-h
+  MENU LABEL RGOS (RG35XX H)
+  LINUX /Image
+  INITRD /initramfs.cpio.gz
+  FDT /sun50i-h700-anbernic-rg35xx-h.dtb
   APPEND #CMDLINE#

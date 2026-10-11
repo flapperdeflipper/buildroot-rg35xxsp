@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Update yt-dlp
+Comment=Fetch the current yt-dlp release (YouTube breaks old versions)
+Exec=rgos-youtube update
+Icon=system-software-update
+Categories=AudioVideo;Network;
+Terminal=true

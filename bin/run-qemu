@@ -100,6 +100,7 @@ args=(
     -smp 4
     -m 1024
     -kernel "${IMAGES}/Image"
+    -initrd "${IMAGES}/initramfs.cpio.gz"
     -append "$(cat "${IMAGES}/cmdline.txt")"
     -drive "if=none,id=hd0,format=raw,file=${DISK}"
     -device virtio-blk-pci,drive=hd0

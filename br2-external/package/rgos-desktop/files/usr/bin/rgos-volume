@@ -1,14 +1,13 @@
 #!/bin/bash
 # Volume control for the hardware volume keys.
 #   rgos-volume up|down|mute|get
-# Prefers PipeWire (pactl, default sink) when a server is up; falls back to
-# ALSA (amixer). $RGOS_MIXER still names the ALSA control for the fallback.
+# Prefers PipeWire (wpctl, default audio sink) when a server is up; falls
+# back to ALSA (amixer). $RGOS_MIXER still names the ALSA control.
 set -u
 
-pw_ok() { pactl get-sink-volume @DEFAULT_SINK@ >/dev/null 2>&1; }
-
-pw_level() { pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null | grep -o -m1 '[0-9]*%' | tr -d %; }
-pw_muted() { [[ "$(pactl get-sink-mute @DEFAULT_SINK@ 2>/dev/null)" == *yes* ]]; }
+pw_ok() { wpctl get-volume @DEFAULT_AUDIO_SINK@ >/dev/null 2>&1; }
+pw_level() { wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null | awk '{ print int($2 * 100) }'; }
+pw_muted() { wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null | grep -q MUTED; }
 
 control="${RGOS_MIXER:-}"
 if [[ -z "${control}" ]]; then
@@ -44,16 +43,16 @@ show() {
 }
 
 case "${1:-get}" in
-    up)   if pw_ok; then pactl set-sink-volume @DEFAULT_SINK@ +5%
-                 pactl set-sink-mute @DEFAULT_SINK@ 0
+    up)   if pw_ok; then wpctl set-mute @DEFAULT_AUDIO_SINK@ 0
+                 wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+
           elif alsa_ok; then amixer -q sset "${control}" 5%+ unmute
           fi
           show ;;
-    down) if pw_ok; then pactl set-sink-volume @DEFAULT_SINK@ -5%
+    down) if pw_ok; then wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-
           elif alsa_ok; then amixer -q sset "${control}" 5%-
           fi
           show ;;
-    mute) if pw_ok; then pactl set-sink-mute @DEFAULT_SINK@ toggle
+    mute) if pw_ok; then wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
           elif alsa_ok; then amixer -q sset "${control}" toggle
           fi
           show ;;

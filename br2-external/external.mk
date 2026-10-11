@@ -74,11 +74,16 @@ RGOS_ROCKNIX_H700_PATCHES = \
 ifeq ($(BR2_RGOS_LINUX_H700_PATCHES),y)
 LINUX_EXTRA_DOWNLOADS += \
 	$(addprefix $(RGOS_ROCKNIX_URL)/projects/ROCKNIX/devices/H700/patches/linux/,$(RGOS_ROCKNIX_H700_PATCHES))
+# One missing or failing patch MUST abort the build (a plain $(foreach)
+# recipe line skips failures silently — that shipped a kernel without the
+# panel driver once). Hence a shell loop with an explicit exit per patch.
 define RGOS_LINUX_APPLY_ROCKNIX
-	$(foreach p,$(RGOS_ROCKNIX_H700_PATCHES),
-		echo "Applying H700 patch $(p)"
-		patch -d $(@D) -p1 -N -F2 --no-backup-if-mismatch -s < $(LINUX_DL_DIR)/$(p)
-	)
+	for p in $(RGOS_ROCKNIX_H700_PATCHES); do \
+		echo "Applying H700 patch $$p"; \
+		patch -d $(@D) -p1 -N -F2 --no-backup-if-mismatch -s \
+			< $(LINUX_DL_DIR)/$$p || \
+			{ echo "H700 patch $$p FAILED (missing download or rejected)"; exit 1; }; \
+	done
 endef
 LINUX_POST_PATCH_HOOKS += RGOS_LINUX_APPLY_ROCKNIX
 endif

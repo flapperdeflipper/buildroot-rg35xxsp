@@ -67,16 +67,30 @@ watts() { awk -v uw="$1" 'BEGIN { printf "%.2f", (uw < 0 ? -uw : uw) / 1e6 }'; }
 # rfkill types: wlan, bluetooth. /dev/rfkill is accessible to the active
 # session (logind uaccess); systemd-rfkill remembers the state per device.
 radio() {
-    local type="$1" action="${2:-state}" blocked
+    local type="$1" action="${2:-state}" blocked label on_icon off_icon
     [[ "${type}" == wifi ]] && type=wlan
     blocked="$(rfkill -n -o SOFT -r list "${type}" 2>/dev/null | head -n1)"
+    [[ "${action}" == state ]] && { [[ -z "${blocked}" ]] && echo none || { [[ "${blocked}" == unblocked ]] && echo on || echo off; }; return; }
     case "${action}" in
-        state)  [[ -z "${blocked}" ]] && echo none || { [[ "${blocked}" == unblocked ]] && echo on || echo off; } ;;
         on)     rfkill unblock "${type}" ;;
         off)    rfkill block "${type}" ;;
         toggle) if [[ "${blocked}" == unblocked ]]; then rfkill block "${type}"; else rfkill unblock "${type}"; fi ;;
         *)      echo "usage: rgos-power ${1} on|off|toggle|state" >&2; return 2 ;;
     esac
+    # Power save stays off while Wi-Fi is on (deliberate: SDIO latency);
+    # the interface survives soft rfkill, so this runs right after unblocking.
+    [[ "${type}" == wlan && "$(radio "$1" state)" == on ]] && /usr/libexec/rgos/wifi-powersave-off
+    # Feedback popup (menu actions; rgos-notify is a silent no-op without a
+    # session bus, e.g. when this runs from a system context)
+    case "$1" in
+        wifi)      label="Wi-Fi";     on_icon=network-wireless-symbolic;   off_icon=network-wireless-offline-symbolic ;;
+        bluetooth) label="Bluetooth"; on_icon=bluetooth-active-symbolic;   off_icon=bluetooth-disabled-symbolic ;;
+    esac
+    if [[ "$(radio "$1" state)" == on ]]; then
+        rgos-notify -r radio "${label} on" "" "${on_icon}"
+    else
+        rgos-notify -r radio "${label} off" "" "${off_icon}"
+    fi
 }
 
 # ---------------------------------------------------------------- profiles

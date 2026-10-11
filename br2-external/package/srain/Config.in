@@ -1,0 +1,13 @@
+config BR2_PACKAGE_SRAIN
+	bool "srain"
+	depends on BR2_USE_MMU
+	select BR2_PACKAGE_LIBCONFIG
+	select BR2_PACKAGE_LIBGTK3
+	select BR2_PACKAGE_LIBSECRET
+	select BR2_PACKAGE_LIBSOUP3
+	select BR2_PACKAGE_OPENSSL
+	help
+	  Srain is a modern IRC client written in GTK. It has a vertical
+	  conversation layout and stays usable without a mouse.
+
+	  https://srain.silverrainz.me

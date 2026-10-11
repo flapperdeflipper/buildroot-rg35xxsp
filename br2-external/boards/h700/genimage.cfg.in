@@ -17,6 +17,20 @@ image boot.vfat {
 	size = 64M
 }
 
+image overlay.ext4 {
+	ext4 {
+		label = "rgos-overlay"
+	}
+	size = 2G
+}
+
+image data.ext4 {
+	ext4 {
+		label = "rgos-data"
+	}
+	size = 512M
+}
+
 image #IMAGE_NAME# {
 	hdimage {
 		partition-table-type = "mbr"
@@ -38,6 +52,16 @@ image #IMAGE_NAME# {
 
 	partition rootfs {
 		partition-type = 0x83
-		image = "rootfs.ext4"
+		image = "rootfs.erofs"
+	}
+
+	partition overlay {
+		partition-type = 0x83
+		image = "overlay.ext4"
+	}
+
+	partition data {
+		partition-type = 0x83
+		image = "data.ext4"
 	}
 }

@@ -1,0 +1,23 @@
+#!/bin/bash
+# Update yt-dlp on a running system (root: sudo -n /usr/libexec/rgos/ytupdate,
+# or the "Update yt-dlp" menu entry). Images pin yt-dlp at build time, but
+# YouTube changes break old extractors; this fetches the current release
+# zipapp into /usr/local/bin (first in PATH, shadows /usr/bin) after checking
+# it against the release's SHA2-256SUMS.
+set -euo pipefail
+
+url="https://github.com/yt-dlp/yt-dlp/releases/latest/download"
+tmp="$(mktemp -d)"
+trap 'rm -rf "${tmp}"' EXIT
+
+old="$(PATH=/usr/local/bin:/usr/bin yt-dlp --version 2>/dev/null || echo none)"
+curl -fsSL "${url}/yt-dlp"       -o "${tmp}/yt-dlp"
+curl -fsSL "${url}/SHA2-256SUMS" -o "${tmp}/SHA2-256SUMS"
+grep -E "  yt-dlp$" "${tmp}/SHA2-256SUMS" >"${tmp}/SUMS"
+[[ -s "${tmp}/SUMS" ]] || { echo "ytupdate: no yt-dlp entry in SHA2-256SUMS"; exit 1; }
+(cd "${tmp}" && sha256sum -c SUMS) >/dev/null
+new="$(python3 "${tmp}/yt-dlp" --version)"    # it must run before we install it
+
+install -D -m 0755 "${tmp}/yt-dlp" /usr/local/bin/yt-dlp.tmp
+mv -f /usr/local/bin/yt-dlp.tmp /usr/local/bin/yt-dlp
+echo "yt-dlp ${old} -> ${new} (/usr/local/bin/yt-dlp)"

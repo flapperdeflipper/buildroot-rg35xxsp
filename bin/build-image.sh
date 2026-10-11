@@ -213,10 +213,26 @@ log "Config OK"
 # buildbox.sh follows the log and reads the exit code from the status file,
 # so a dropped SSH connection never kills or loses a build)
 # Per-package directories: build several packages at once (top-level -j),
-# each with half the cores, so big single packages still go fast
-TOP_JOBS=$(( NPROC / 2 > 1 ? NPROC / 2 : 1 ))
-log "Building ${BOARD}: ${TOP_JOBS} packages in parallel, ${NPROC} jobs each"
-"${BR_MAKE[@]}" -j"${TOP_JOBS}" BR2_JLEVEL="${NPROC}"
+# each with half the cores, so big single packages still go fast.
+# RGOS_JOBS caps per-package parallelism when RAM is the limit, not cores
+# (WebKit's unified TUs take 2-4 GB each; 8 in parallel OOMs a 16 GB VM).
+JOBS="${RGOS_JOBS:-$NPROC}"
+TOP_JOBS=$(( NPROC / JOBS > 1 ? NPROC / JOBS : 1 ))
+log "Building ${BOARD}: ${TOP_JOBS} packages in parallel, ${JOBS} jobs each"
+"${BR_MAKE[@]}" -j"${TOP_JOBS}" BR2_JLEVEL="${JOBS}"
+
+# The H700 device kernel is dead without its out-of-tree panel driver
+# (black screen). A partially-patched kernel once shipped silently, so
+# assert the module is actually there. The module is panel-mipi.ko
+# (CONFIG_DRM_PANEL_MIPI; "panel-mipi-dpi-spi" is its DT compatible).
+if grep -q "^BR2_RGOS_LINUX_H700_PATCHES=y" "${OUT}/.config"; then
+    if ! ls "${OUT}"/target/lib/modules/*/kernel/drivers/gpu/drm/panel/panel-mipi.ko >/dev/null 2>&1; then
+        log_err "H700 patches enabled but panel-mipi.ko is missing from the kernel!"
+        log_err "The ROCKNIX kernel patches did not apply (see 'Applying H700 patch' in the log above)."
+        exit 1
+    fi
+    log "H700 panel driver present in the kernel (panel-mipi.ko)"
+fi
 
 prune_objects
 
@@ -227,7 +243,7 @@ for img in "${OUT}"/images/rgos-*.img; do
     log_dim "compressing $(basename "${img}")"
     pigz -9 --force --keep --stdout "${img}" >"${ARTIFACTS}/$(basename "${img}").gz"
 done
-cp -v "${OUT}/images/Image" "${OUT}/images/cmdline.txt" "${OUT}"/images/*.dtb "${ARTIFACTS}/" 2>/dev/null || true
+cp -v "${OUT}/images/Image" "${OUT}/images/cmdline.txt" "${OUT}/images/initramfs.cpio.gz" "${OUT}"/images/*.dtb "${ARTIFACTS}/" 2>/dev/null || true
 
 # Software bill of materials (CycloneDX): every package, version, license
 log "Writing the SBOM (CycloneDX)"

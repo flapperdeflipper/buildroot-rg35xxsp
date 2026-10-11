@@ -15,4 +15,4 @@ uv run pytest --host ssh://user@rgos.local   # test a provisioned device
 - `bin/test-qemu` remains the place for pad-driven UI checks (screenshots,
   simulated buttons); migrate checks here when they are SSH-shaped.
 
-See docs/roadmap.md (Housekeeping) for the migration plan.
+See tmp/agents/roadmap.md (Housekeeping) for the migration plan.

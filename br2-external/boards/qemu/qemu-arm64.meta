@@ -5,4 +5,4 @@
 BOARD_IMAGE_BASENAME="rgos-qemu-arm64"
 BOARD_DTBS=""
 BOARD_DISK_SIGNATURE="0x52473335"
-BOARD_CMDLINE="root=PARTUUID=52473335-02 rootwait rw console=ttyAMA0 console=tty1 quiet loglevel=3"
+BOARD_CMDLINE="root=PARTUUID=52473335-02 rootwait ro console=ttyAMA0 console=tty1 quiet loglevel=3"

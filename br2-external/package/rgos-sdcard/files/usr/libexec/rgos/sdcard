@@ -45,7 +45,9 @@ set_state() {   # state dev fstype label
 
 state_dev() { awk '{ print $2 }' "${STATE}" 2>/dev/null; }
 
-root_disk() { lsblk -ndo PKNAME "$(findmnt -no SOURCE /)" 2>/dev/null; }
+# The system disk: /data is its p4 partition (the root itself is an
+# overlayfs whose source is just "overlay")
+root_disk() { lsblk -ndo PKNAME "$(findmnt -no SOURCE /data)" 2>/dev/null; }
 
 disk_of() {     # mmcblk1p1 -> mmcblk1, mmcblk1 -> mmcblk1
     local parent

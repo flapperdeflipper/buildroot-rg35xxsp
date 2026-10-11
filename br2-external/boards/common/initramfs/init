@@ -1,0 +1,95 @@
+#!/bin/sh
+# RGOS early userspace (initramfs, busybox). Card layout (MBR, fixed
+# signature 0x52473335): raw SPL at 8 KiB (device only), p1 RGOS-BOOT (FAT),
+# p2 rgos-root (erofs, read-only), p3 rgos-overlay (ext4, overlayfs upper),
+# p4 rgos-data (ext4, /data). This script mounts p2+p3+p4, puts an
+# overlayfs over the whole root (so /etc and /var stay writable), binds
+# /home from /data, then switch_root's to systemd.
+#
+# The overlay upper is PERSISTENT (unlike a stateless /etc): RGOS keeps the
+# journal and configuration changes. index=off because the erofs lower is
+# replaced wholesale on image updates and a stale inode index would cause
+# ESTALE on mount.
+set -u
+
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+
+echo "rgos-init: starting"
+
+# Find the system disk by probing: mount partition 2 of each candidate as
+# erofs. Probing (not just taking the first disk) matters in QEMU, where
+# mmcblk0 can be the second SD card while the system disk is vda.
+mkdir -p /mnt
+DISK=""
+for d in /dev/mmcblk0 /dev/vda /dev/mmcblk1; do
+    [ -b "${d}" ] || continue
+    case "${d}" in
+        /dev/mmcblk*) cand="${d}p2" ;;
+        *)            cand="${d}2"  ;;
+    esac
+    [ -b "${cand}" ] || continue
+    if mount -t erofs -o ro "${cand}" /mnt 2>/dev/null; then
+        DISK="${d}"
+        break
+    fi
+done
+if [ -z "${DISK}" ]; then
+    echo "rgos-init: FATAL: no disk with an erofs root partition"
+    cat /proc/partitions
+    exec sh
+fi
+case "${DISK}" in
+    /dev/mmcblk*) P="${DISK}p" ;;
+    *)            P="${DISK}"  ;;
+esac
+ROOT_DEV="${P}2"
+OVERLAY_DEV="${P}3"
+DATA_DEV="${P}4"
+
+i=0
+while [ ! -b "${DATA_DEV}" ] && [ "$i" -lt 50 ]; do
+    i=$((i + 1))
+    sleep 0.1
+done
+
+echo "rgos-init: root=${ROOT_DEV} overlay=${OVERLAY_DEV} data=${DATA_DEV}"
+
+mount -t ext4 -o rw,noatime,commit=60 "${OVERLAY_DEV}" /overlay || {
+    echo "rgos-init: FATAL: cannot mount overlay partition"; exec sh; }
+mkdir -p /overlay/upper /overlay/work
+
+mount -t ext4 -o rw,noatime,commit=60 "${DATA_DEV}" /data || {
+    echo "rgos-init: FATAL: cannot mount data partition"; exec sh; }
+mkdir -p /data/home /data/config
+
+# First boot: seed /home from the image (user account + skel)
+if [ ! -d /data/home/user ] && [ -d /mnt/home/user ]; then
+    echo "rgos-init: seeding /data/home from the image"
+    cp -a /mnt/home/user /data/home/
+fi
+
+mount -t overlay overlay \
+    -o "lowerdir=/mnt,upperdir=/overlay/upper,workdir=/overlay/work,index=off" \
+    /newroot || {
+    echo "rgos-init: FATAL: overlayfs mount failed"
+    cat /proc/mounts
+    exec sh; }
+
+# /home lives on /data (mounts, not symlinks)
+mount -o bind /data/home /newroot/home
+
+# Keep the raw partitions reachable after switch_root
+mkdir -p /newroot/mnt/root-ro /newroot/mnt/overlay
+mount -o bind /mnt /newroot/mnt/root-ro
+mount -o move /overlay /newroot/mnt/overlay
+mkdir -p /newroot/data
+mount -o move /data /newroot/data
+
+mount -o move /proc /newroot/proc
+mount -o move /sys  /newroot/sys
+mount -o move /dev  /newroot/dev
+
+echo "rgos-init: switching to systemd"
+exec switch_root /newroot /sbin/init

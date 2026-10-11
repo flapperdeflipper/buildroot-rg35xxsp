@@ -41,7 +41,7 @@ _default_mem_gib=$(( _host_mem_gib * 2 / 3 ))
 
 VM_CPUS="${BUILDBOX_VM_CPUS:-${_default_cpus}}"
 VM_MEMORY="${BUILDBOX_VM_MEMORY:-${_default_mem_gib}GiB}"
-VM_DISK="${BUILDBOX_VM_DISK:-100GiB}"
+VM_DISK="${BUILDBOX_VM_DISK:-160GiB}"
 unset _host_cpus _host_mem_gib _default_cpus _default_mem_gib
 
 REMOTE_USER="builder"

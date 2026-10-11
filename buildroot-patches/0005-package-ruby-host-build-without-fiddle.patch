@@ -1,0 +1,23 @@
+From: RGOS <noreply@localhost>
+Subject: [PATCH] package/ruby: don't build the fiddle ext for host-ruby
+
+ruby 4.x makes an ext that fails to configure fatal ("Fix the problems,
+then remove these directories"), and host-ruby has no libffi dependency
+to configure fiddle against. WebKitGTK only needs host-ruby as a build
+tool; skip the ext the same way the target build does for MIPS
+(--with-out-ext=fiddle).
+---
+ package/ruby/ruby.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/package/ruby/ruby.mk
++++ b/package/ruby/ruby.mk
+@@ -31,7 +31,7 @@ HOST_RUBY_CONF_OPTS = \
+ 	--disable-install-doc \
+ 	--disable-yjit \
+ 	--disable-zjit \
+-	--with-out-ext=curses,readline \
++	--with-out-ext=curses,readline,fiddle \
+ 	--without-gmp
+ 
+ ifeq ($(BR2_TOOLCHAIN_HAS_LIBATOMIC),y)

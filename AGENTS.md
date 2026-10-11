@@ -2,10 +2,14 @@
 
 Buildroot + systemd OS for the Anbernic RG35XX SP (Allwinner H700). Desktop:
 labwc + sfwbar, foot, Mousepad, PCManFM; rgos-padd maps the buttons.
-See README.md (usage) and docs/ (roadmap, hardware, boot flow).
-**Current status and next steps: docs/HANDOVER.md** (keep it updated).
-Planned work: docs/roadmap.md (power/perf candidates + verdicts: its ROCKNIX-survey section); the storage redesign (read-only
-root, data partition, clone/backup apps): docs/storage-plan.md.
+Human documentation (how the OS works, hardware, apps, building, testing):
+**docs/** — keep it readable for humans: no session notes, no todo lists,
+no agent-internal state in there.
+Agent working files live in **tmp/agents/** (gitignored):
+- `tmp/agents/HANDOVER.md` — current status + "Next session: start here";
+  read it at the start of a session, keep it updated.
+- `tmp/agents/roadmap.md` — the todo list (phases, candidates, verdicts).
+- `tmp/agents/device-test.md` — the device-test checklist + results.
 Design preference (user): systemd mechanisms over custom scripts; mounts and
 configuration over symlinks; stay mergeable with ~/.projects/offline-lab.
 **Several agents may work in this tree at once**: read and append to
@@ -16,7 +20,7 @@ configuration over symlinks; stay mergeable with ~/.projects/offline-lab.
 
 - Builds run in the lima VM `rgbox` via `bin/buildbox.sh`, never on the Mac
   (`bin/build-image.sh` runs inside the VM). How to set up and use it:
-  docs/buildbox.md.
+  docs/building.md.
 - `bin/buildbox.sh check <board>` after any defconfig change (catches dropped
   and legacy symbols). Kernel fragments are checked after configure.
 - Incremental: `bin/buildbox.sh make <board> <pkg>-dirclean`, then

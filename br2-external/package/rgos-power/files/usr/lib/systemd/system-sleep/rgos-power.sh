@@ -66,6 +66,9 @@ post() {
         rm -f "${leds_file}"
     fi
 
+    # Wi-Fi power save stays off after resume (the driver may reset it)
+    /usr/libexec/rgos/wifi-powersave-off || true
+
     # Watchdog: clear our alarm; if it is what woke us, power off cleanly
     if [[ -r "${wd_file}" ]]; then
         wd="$(cat "${wd_file}")"

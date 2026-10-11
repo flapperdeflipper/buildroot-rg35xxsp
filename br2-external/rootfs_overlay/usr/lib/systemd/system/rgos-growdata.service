@@ -1,14 +1,15 @@
 [Unit]
-Description=Grow root filesystem to fill the SD card
+Description=Grow the data partition to fill the SD card
 DefaultDependencies=no
 After=local-fs.target
 Before=sysinit.target shutdown.target
 Conflicts=shutdown.target
-ConditionPathExists=!/var/lib/rgos/growfs.done
+ConditionPathExists=!/data/.grown
+ConditionPathIsMountPoint=/data
 
 [Service]
 Type=oneshot
-ExecStart=/usr/libexec/rgos/growfs
+ExecStart=/usr/libexec/rgos/growdata
 RemainAfterExit=yes
 
 [Install]

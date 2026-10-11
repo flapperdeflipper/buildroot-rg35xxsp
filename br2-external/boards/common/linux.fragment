@@ -31,6 +31,10 @@ CONFIG_PSI=y
 
 # Filesystems
 CONFIG_EXT4_FS=y
+# Read-only root: erofs (p2) + overlayfs (upper on p3) + initramfs boot
+CONFIG_EROFS_FS=y
+CONFIG_EROFS_FS_ZIP=y
+CONFIG_OVERLAY_FS=y
 CONFIG_VFAT_FS=y
 CONFIG_EXFAT_FS=y
 CONFIG_FAT_DEFAULT_UTF8=y
