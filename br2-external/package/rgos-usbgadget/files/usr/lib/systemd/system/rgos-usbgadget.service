@@ -1,0 +1,13 @@
+[Unit]
+Description=USB-C gadget (NCM network + serial console)
+ConditionPathExists=/sys/kernel/config/usb_gadget
+After=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/rgos/usbgadget up
+ExecStop=/usr/libexec/rgos/usbgadget down
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Test: NES (nestopia)
+Comment=Two-tone test screen + beep
+Exec=rgos-game retroarch -L /usr/lib/libretro/nestopia_libretro.so /usr/share/rgos/roms/rgos-test.nes
+Terminal=false
+Categories=Game;

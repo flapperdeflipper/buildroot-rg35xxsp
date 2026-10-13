@@ -13,8 +13,10 @@ cat <<'EOF'
              START = Enter, B/SELECT closes it
              (opens by itself for text apps when no USB/BT keyboard
              is attached; plugging one in hides it again)
-  MENU tap   switch pointer <-> keys mode (d-pad = arrow keys,
-             A = Enter, B = Esc, X = Backspace, Y = Space, L1/R1 = Tab)
+  MENU tap   pointer -> keys mode (d-pad = arrow keys, A = Enter,
+             B = Esc, X = Backspace, Y = Space, L1/R1 = Tab)
+  In keys mode MENU closes the focused window; the mouse comes back
+  via START -> menu -> Power -> Pointer mode (or MENU held + START).
 
   MENU held +  B close window      X Wi-Fi        START power menu
                up/down brightness  A Ctrl+C       Y paste

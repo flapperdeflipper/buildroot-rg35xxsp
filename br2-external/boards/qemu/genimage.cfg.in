@@ -17,14 +17,14 @@ image overlay.ext4 {
 	ext4 {
 		label = "rgos-overlay"
 	}
-	size = 2G
+	size = 512M
 }
 
 image data.ext4 {
 	ext4 {
 		label = "rgos-data"
 	}
-	size = 512M
+	size = 128M
 }
 
 image #IMAGE_NAME# {

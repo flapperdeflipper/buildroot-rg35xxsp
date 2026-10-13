@@ -1,0 +1,94 @@
+#!/bin/bash
+# Optional services: see what is on and flip it.
+#   rgos-services menu          pick a service, toggle it, until Close
+#   rgos-services list          one line per service: "<id>: <on|off>"
+#   rgos-services on|off|toggle <id>
+#
+# Definitions ship in /usr/share/rgos/services.d/*.conf:
+#   name=Syncthing
+#   description=File sync between devices
+#   scope=user              user = session unit, system = root unit
+#   unit=syncthing.service
+set -u
+
+DIR=/usr/share/rgos/services.d
+
+pick() {
+    local prompt="$1"
+    shift
+    printf '%s\n' "$@" | fuzzel --dmenu --prompt "${prompt}" --lines "$#"
+}
+
+note() { printf '%s\n' "$1" | fuzzel --dmenu --prompt "Services: " --lines 1 >/dev/null; }
+
+field() { sed -n "s/^$2=//p" "$1" 2>/dev/null | head -n1; }
+
+ctl() {   # scope -> systemctl invocation
+    case "${1}" in
+        user)   echo "systemctl --user" ;;
+        system) echo "sudo -n systemctl" ;;
+    esac
+}
+
+is_on() {
+    local f="$1"
+    $(ctl "$(field "${f}" scope)") is-active --quiet "$(field "${f}" unit)"
+}
+
+set_state() {   # conf-file on|off
+    local f="$1" want="$2" id name
+    id="$(basename "${f}" .conf)"
+    name="$(field "${f}" name)"
+    if [[ "${want}" == on ]]; then
+        $(ctl "$(field "${f}" scope)") enable --now "$(field "${f}" unit)" || {
+            note "${name}: could not start (see journalctl)"; return 1; }
+    else
+        $(ctl "$(field "${f}" scope)") disable --now "$(field "${f}" unit)" || {
+            note "${name}: could not stop"; return 1; }
+    fi
+    rgos-notify "${name}" "$([[ ${want} == on ]] && echo Running || echo Stopped)" \
+        network-transmit-receive >/dev/null 2>&1 || true
+}
+
+list() {
+    local f id
+    for f in "${DIR}"/*.conf; do
+        [[ -e "${f}" ]] || continue
+        id="$(basename "${f}" .conf)"
+        is_on "${f}" && echo "${id}: on" || echo "${id}: off"
+    done
+}
+
+menu() {
+    local choice entries f
+    while :; do
+        entries=()
+        for f in "${DIR}"/*.conf; do
+            [[ -e "${f}" ]] || continue
+            if is_on "${f}"; then
+                entries+=("$(basename "${f}" .conf)  -  $(field "${f}" name) (on)")
+            else
+                entries+=("$(basename "${f}" .conf)  -  $(field "${f}" name) (off)")
+            fi
+        done
+        [[ "${#entries[@]}" -gt 0 ]] || { note "No optional services"; return 0; }
+        entries+=("Close")
+        choice="$(pick "Services: " "${entries[@]}")" || return 0
+        [[ "${choice}" == Close || -z "${choice}" ]] && return 0
+        local id="${choice%% *}" want=on
+        is_on "${DIR}/${id}.conf" && want=off
+        set_state "${DIR}/${id}.conf" "${want}"
+    done
+}
+
+case "${1:-list}" in
+    menu)   menu ;;
+    list)   list ;;
+    on|off) [[ $# -eq 2 ]] || { echo "usage: $0 on|off <id>" >&2; exit 2; }
+            [[ -r "${DIR}/${2}.conf" ]] || { echo "unknown service: $2" >&2; exit 2; }
+            set_state "${DIR}/${2}.conf" "${1}" ;;
+    toggle) [[ $# -eq 2 ]] || { echo "usage: $0 toggle <id>" >&2; exit 2; }
+            [[ -r "${DIR}/${2}.conf" ]] || { echo "unknown service: $2" >&2; exit 2; }
+            is_on "${DIR}/${2}.conf" && set_state "${DIR}/${2}.conf" off || set_state "${DIR}/${2}.conf" on ;;
+    *)      sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

@@ -1,9 +1,0 @@
-config BR2_PACKAGE_SYNCTHING
-	bool "syncthing"
-	depends on BR2_PACKAGE_HOST_GO_TARGET_ARCH_SUPPORTS
-	help
-	  Continuous file synchronization between devices. Planned as a
-	  session user service (like the desktop), syncing /data/home on
-	  the handheld with other machines.
-
-	  https://syncthing.net

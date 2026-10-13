@@ -1,7 +1,0 @@
-# Background work (Syncthing, backups, indexing): never in the way.
-[Unit]
-Description=Background slice
-
-[Slice]
-CPUWeight=20
-MemoryHigh=25%

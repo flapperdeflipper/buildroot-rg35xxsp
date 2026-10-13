@@ -16,7 +16,7 @@ objects() {
 
 station="$(objects | jq -r '.data[0] | to_entries[] | select(.value["net.connman.iwd.Station"]) | .key' | head -n1)"
 if [[ -z "${station}" ]]; then
-    note "No WiFi device found (is iwd running?)"
+    note "No Wi-Fi adapter - the driver probe failed this boot; reboot, or wait for the retry service"
     exit 1
 fi
 dev="$(objects | jq -r --arg s "${station}" '.data[0][$s]["net.connman.iwd.Device"].Name.data')"

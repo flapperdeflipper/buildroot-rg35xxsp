@@ -1,4 +1,7 @@
 # Services enabled on RGOS (systemctl preset-all runs at image build time)
+# Buildroot's later 80-buildroot.preset blanket-enables everything, so
+# opt-in services must be disabled HERE (first match wins).
+disable rgos-usbgadget.service
 enable rgos-growdata.service
 enable rgos-zram.service
 enable rgos-zram-recompress.timer

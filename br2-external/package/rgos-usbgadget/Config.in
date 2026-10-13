@@ -1,0 +1,8 @@
+config BR2_PACKAGE_RGOS_USBGADGET
+	bool "rgos-usbgadget"
+	depends on BR2_PACKAGE_HAS_UDEV
+	help
+	  USB-C gadget mode: NCM ethernet (ssh over the USB cable, no Wi-Fi
+	  needed) plus an ACM serial port. Ships as a systemd service that is
+	  OFF by default; turn it on in the Services menu ("USB networking").
+	  Device-only (needs the musb UDC).

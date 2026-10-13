@@ -2,8 +2,7 @@
 # Battery safety and status (system service): below poweroff_percent while
 # discharging, shut down cleanly before the battery dies under the SD card.
 # Crossing warn_percent downwards sends one low-battery notification per
-# discharge (the panel prints "LOW" alongside). While charging, the red
-# status LED is on (charge_led=0 keeps the guard off the LED).
+# discharge (the panel prints "LOW" alongside).
 #
 # --once            single poll, no loop (tests)
 # --psu-dir DIR     scan DIR instead of /sys/class/power_supply (mock battery)
@@ -58,19 +57,8 @@ while :; do
         elif [[ "${status}" != Discharging || "${pct}" -gt $((warn + 5)) ]]; then
             rm -f "${warned_file}" 2>/dev/null || true
         fi
-
-        # Charge LED: red status LED on while charging (device only; QEMU
-        # has no LEDs and no battery — best effort)
-        if [[ "$(rgos-power-conf charge_led 1)" == 1 ]]; then
-            led=/sys/class/leds/red:status/brightness
-            if [[ -w "${led}" ]]; then
-                if [[ "${status}" == Charging ]]; then
-                    echo 1 >"${led}" 2>/dev/null || true
-                else
-                    echo 0 >"${led}" 2>/dev/null || true
-                fi
-            fi
-        fi
+        # Red LED policy: red means FAULT. Charging is normal operation,
+        # so the status LED stays off (user rule 2026-10-12).
     done
     [[ "${once}" == 1 ]] && exit 0
     sleep 60

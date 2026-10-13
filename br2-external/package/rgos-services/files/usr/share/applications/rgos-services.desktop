@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Services
+Comment=Turn optional services on or off
+Exec=rgos-services menu
+Terminal=false
+Categories=Settings;

@@ -1,0 +1,41 @@
+#!/bin/bash
+# USB-C gadget (configfs): NCM ethernet + serial console.
+# Gives ssh-over-USB-C and a serial console without Wi-Fi. Untested draft.
+set -euo pipefail
+G=/sys/kernel/config/usb_gadget/rgos
+
+cmd_up() {
+    modprobe libcomposite 2>/dev/null || true
+    modprobe usb_f_ncm usb_f_acm 2>/dev/null || true
+    [[ -d /sys/kernel/config ]] || mount -t configfs configfs /sys/kernel/config
+    mkdir -p "$G"/strings/0x409 "$G"/configs/c.1/strings/0x409
+    echo 0x1d6b > idVendor   # Linux Foundation
+    echo 0x0104 > idProduct  # Multifunction composite gadget
+    echo "RGOS" > strings/0x409/manufacturer
+    echo "$(hostname)" > strings/0x409/product
+    echo "c.1" > configs/c.1/strings/0x409/configuration
+    echo 500 > configs/c.1/MaxPower
+
+    mkdir -p "$G"/functions/ncm.usb0 "$G"/functions/acm.gs0
+    ln -sf functions/ncm.usb0 configs/c.1/
+    ln -sf functions/acm.gs0  configs/c.1/
+
+    udc="$(ls /sys/class/udc | head -n1)"
+    [[ -n "$udc" ]] || { echo "no UDC" >&2; exit 1; }
+    echo "$udc" > UDC
+}
+
+cmd_down() {
+    [[ -d "$G" ]] || exit 0
+    echo "" > UDC 2>/dev/null || true
+    rm -f configs/c.1/ncm.usb0 configs/c.1/acm.gs0
+    rmdir functions/ncm.usb0 functions/acm.gs0 \
+          configs/c.1/strings/0x409 configs/c.1 \
+          strings/0x409 "$G" 2>/dev/null || true
+}
+
+case "${1:-}" in
+    up)   cmd_up ;;
+    down) cmd_down ;;
+    *)    echo "usage: usb-gadget up|down" >&2; exit 2 ;;
+esac

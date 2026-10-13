@@ -2,7 +2,7 @@
 Type=Application
 Name=YouTube
 Comment=Search and watch YouTube videos (yt-dlp + mpv)
-Exec=rgos-youtube
+Exec=rgos-yt-app
 Icon=video-x-generic
 Categories=AudioVideo;Video;
 Terminal=false

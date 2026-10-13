@@ -15,10 +15,19 @@ Open things with Start, then Applications.
   for reading sites and documentation. This is the browser.
 - **Srain** (IRC, GTK) and **WeeChat** (IRC, terminal).
 
+## Optional services
+
+The Services menu turns optional services on and off. The first one is
+Syncthing, file sync between devices, off by default. Once started it
+shows its web interface on port 8384, reachable from another device on
+the same network.
+
 ## YouTube
 
-Search with the keyboard, pick a result with the d-pad and A. The video
-plays full screen in mpv at up to 480p.
+The YouTube app is a windowed client: type to search (the keyboard
+opens by itself), walk the results with the d-pad, play with A. The
+video plays full screen in mpv at up to 480p; closing mpv returns to
+the list.
 
 - A: pause
 - L1/R1: seek

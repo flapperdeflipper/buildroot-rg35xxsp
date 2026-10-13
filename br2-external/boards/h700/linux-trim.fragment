@@ -526,12 +526,10 @@
 # CONFIG_UCSI_PMIC_GLINK is not set
 # CONFIG_USB_CDNS3 is not set
 # CONFIG_USB_CDNS_SUPPORT is not set
-# CONFIG_USB_F_ACM is not set
 # CONFIG_USB_F_ECM is not set
 # CONFIG_USB_F_EEM is not set
 # CONFIG_USB_F_FS is not set
 # CONFIG_USB_F_MASS_STORAGE is not set
-# CONFIG_USB_F_NCM is not set
 # (session-agent: CONFIG_USB_F_OBEX removed — selected by other enabled options; failed check-kconfig)
 # CONFIG_USB_F_RNDIS is not set
 # CONFIG_USB_F_SUBSET is not set

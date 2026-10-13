@@ -9,6 +9,17 @@ mode_file="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/rgos-padd.mode"
 prev="$(cat "${mode_file}" 2>/dev/null || echo mouse)"
 [[ "${prev}" == osk ]] && prev=mouse
 
+# game_conf <key> [default]: /etc/rgos/game.conf, then ~/.config/rgos/
+game_conf() {
+    local key="$1" default="${2:-}" f line
+    for f in /etc/rgos/game.conf "${HOME}/.config/rgos/game.conf"; do
+        [[ -r "${f}" ]] || continue
+        line="$(grep -E "^[[:space:]]*${key}[[:space:]]*=" "${f}" | tail -n1)"
+        [[ -n "${line}" ]] && { sed -E 's/^[^=]*=[[:space:]]*//; s/[[:space:]]*(#.*)?$//' <<<"${line}"; return; }
+    done
+    echo "${default}"
+}
+
 # First run: install the default RetroArch config for the user; RetroArch
 # owns the file afterwards, so settings saves persist.
 cfg="${HOME}/.config/retroarch/retroarch.cfg"
@@ -18,11 +29,18 @@ if [[ ! -e "${cfg}" && -e /etc/rgos/retroarch.cfg.defaults ]]; then
 fi
 
 rgos-padctl mode passthrough 2>/dev/null
+# The Mesa copy-image override is a Mali-G31 optimization, but it is
+# unproven on hardware and a hard-lock suspect (2026-10-12 device round):
+# opt-in via game.conf until cleared.
+extra=()
+if [[ "$(game_conf mesa_copy_image_override 0)" == 1 ]]; then
+    extra+=(--setenv=MESA_EXTENSION_OVERRIDE="-GL_OES_copy_image -GL_EXT_copy_image -GL_NV_copy_image -GL_ARB_copy_image")
+fi
 # --wait: stay in the foreground until the game exits, so the pad mode
 # is restored when it actually ends (plain systemd-run returns right
 # after the unit starts)
 systemd-run --user --wait --quiet --collect --slice=games.slice --same-dir \
-    --setenv=MESA_EXTENSION_OVERRIDE="-GL_OES_copy_image -GL_EXT_copy_image -GL_NV_copy_image -GL_ARB_copy_image" \
+    "${extra[@]+"${extra[@]}"}" \
     -- "$@"
 rc=$?
 rgos-padctl mode "${prev}" 2>/dev/null

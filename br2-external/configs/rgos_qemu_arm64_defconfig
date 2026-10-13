@@ -34,6 +34,8 @@ BR2_ROOTFS_OVERLAY="$(BR2_EXTERNAL_RGOS_PATH)/rootfs_overlay $(BR2_EXTERNAL_RGOS
 # File sync as a session user service (same delivery planned for the
 # device; promoted from wip/tooling staging).
 BR2_PACKAGE_SYNCTHING=y
+BR2_PACKAGE_RGOS_USBGADGET=y
+BR2_PACKAGE_RTKIT=y
 
 # Emulators (promoted from wip/tooling staging): RetroArch + first core
 # set; rgos-game launcher, slices and defaults config.

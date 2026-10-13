@@ -1,0 +1,7 @@
+config BR2_PACKAGE_RGOS_SERVICES
+	bool "rgos-services"
+	help
+	  The Services menu: turn optional services on or off from the
+	  desktop. First entry: Syncthing's user unit, which ships
+	  disabled. Definitions live in /usr/share/rgos/services.d/, one
+	  file per service.

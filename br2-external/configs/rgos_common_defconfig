@@ -105,6 +105,8 @@ BR2_PACKAGE_BLUEZ5_UTILS_PLUGINS_AUDIO=y
 # compatibility socket for SDL/mpv. alsa-utils stays: amixer fallback
 # (rgos-volume), alsamixer, aplay, speaker-test.
 BR2_PACKAGE_PIPEWIRE=y
+# Realtime for the audio threads (module-rt asks rtkit over the system bus)
+BR2_PACKAGE_RTKIT=y
 BR2_PACKAGE_WIREPLUMBER=y
 BR2_PACKAGE_LUA=y
 BR2_PACKAGE_ALSA_UTILS=y
@@ -144,6 +146,7 @@ BR2_PACKAGE_RGOS_DESKTOP=y
 # Power management: idle/sleep/radios/profiles/battery guard (rgos-power)
 BR2_PACKAGE_RGOS_POWER=y
 BR2_PACKAGE_RGOS_SDCARD=y
+BR2_PACKAGE_RGOS_SERVICES=y
 BR2_PACKAGE_MAKO=y
 BR2_PACKAGE_PCMANFM=y
 BR2_PACKAGE_MOUSEPAD=y
@@ -226,6 +229,7 @@ BR2_PACKAGE_GEANY=y
 BR2_PACKAGE_WEECHAT=y
 # IRC with a GUI (WeeChat stays: IRC in the terminal)
 BR2_PACKAGE_SRAIN=y
+BR2_PACKAGE_MEPO=y
 BR2_PACKAGE_YT_DLP=y
 BR2_PACKAGE_RGOS_YOUTUBE=y
 BR2_PACKAGE_BTOP=y
@@ -254,6 +258,10 @@ BR2_PACKAGE_LIBRETRO_MGBA=y
 BR2_PACKAGE_LIBRETRO_NESTOPIA=y
 BR2_PACKAGE_LIBRETRO_SNES9X=y
 BR2_PACKAGE_LIBRETRO_GENESIS_PLUS_GX=y
+
+# Self-generated test ROMs for the cores (no third-party content);
+# menu entries under Applications -> Game
+BR2_PACKAGE_RGOS_ROMS=y
 
 # File sync as a session user service; DISABLED by default (enable with
 # "systemctl --user enable --now syncthing" or the services menu).

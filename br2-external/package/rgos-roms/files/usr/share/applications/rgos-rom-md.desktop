@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Test: Mega Drive (Genesis-Plus-GX)
+Comment=Solid test screen
+Exec=rgos-game retroarch -L /usr/lib/libretro/genesis_plus_gx_libretro.so /usr/share/rgos/roms/rgos-test.md
+Terminal=false
+Categories=Game;

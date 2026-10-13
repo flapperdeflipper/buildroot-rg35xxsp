@@ -80,6 +80,13 @@ post() {
     # Wi-Fi power save stays off after resume (the driver may reset it)
     /usr/libexec/rgos/wifi-powersave-off || true
 
+    # The musb UDC gadget session usually dies across suspend: re-bind it
+    # when one is configured (no-op when the gadget is off).
+    if [[ -d /sys/kernel/config/usb_gadget/rgos ]]; then
+        /usr/libexec/rgos/usbgadget down >/dev/null 2>&1 || true
+        /usr/libexec/rgos/usbgadget up   >/dev/null 2>&1 || true
+    fi
+
     # Watchdog: clear our alarm; if it is what woke us, power off cleanly
     if [[ -r "${wd_file}" ]]; then
         wd="$(cat "${wd_file}")"

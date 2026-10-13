@@ -1,0 +1,15 @@
+config BR2_PACKAGE_RGOS_ROMS
+	bool "rgos-roms"
+	depends on BR2_PACKAGE_HOST_PYTHON3
+	select BR2_PACKAGE_RETROARCH
+	help
+	  Self-generated test ROMs for the bundled libretro cores (no
+	  third-party content): each boots to a distinctive two-tone or
+	  solid test screen so a screenshot proves the core, the video
+	  path and audio beep (GB/NES/GBA) work. Menu entries under
+	  Applications -> Game launch them through rgos-game.
+
+	  Verified on: nestopia (NES), mGBA (GBA), snes9x (SNES),
+	  Genesis-Plus-GX (MD). The gambatte (GB) ROM is generated and
+	  installed but has no menu entry yet: it does not render on the
+	  gambatte core (known issue, see tmp/agents/HANDOVER.md).

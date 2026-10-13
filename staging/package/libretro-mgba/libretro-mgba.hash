@@ -1,3 +1,0 @@
-# Locally computed: last commit before the libretro port moved to CMake
-# (2026-08-04, 89404771); master has no Makefile.libretro anymore.
-sha256  6287a6119d382f5f13d7daa601313ede2918b214b15d7a2d84fa997f9f444182  libretro-mgba-517e518c48e351def04042dc159064dd098830a9.tar.gz

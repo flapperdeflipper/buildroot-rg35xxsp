@@ -1,0 +1,10 @@
+[Unit]
+Description=Re-bind the WiFi driver when the first SDIO probe failed
+# Runs at every boot; exits immediately when the adapter is already up
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/rgos/wifi-probe-retry
+# The whole point is to be quick when healthy; the retry path is rare
+TimeoutStartSec=60

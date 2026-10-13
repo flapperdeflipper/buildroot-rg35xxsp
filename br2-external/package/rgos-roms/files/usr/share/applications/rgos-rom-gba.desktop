@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Test: GBA (mGBA)
+Comment=Red/blue test screen + beep
+Exec=rgos-game retroarch -L /usr/lib/libretro/mgba_libretro.so /usr/share/rgos/roms/rgos-test.gba
+Terminal=false
+Categories=Game;

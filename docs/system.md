@@ -24,8 +24,8 @@ live, and how power management is set up.
 | raw | | | SPL and U-Boot at 8 KiB |
 | p1 | RGOS-BOOT | FAT | kernel, initramfs, DTBs, extlinux config, provisioning files |
 | p2 | rgos-root | erofs, read-only | the OS |
-| p3 | rgos-overlay | ext4, 2 GiB | overlayfs upper and work directory |
-| p4 | rgos-data | ext4, grows to fill the card on first boot | `/data`, home directories |
+| p3 | rgos-overlay | ext4, 512 MiB | overlayfs upper and work directory |
+| p4 | rgos-data | ext4, 128 MiB, grows to fill the card on first boot | `/data`, home directories |
 
 The running system is an overlayfs. The erofs image below never changes;
 every runtime change to `/etc`, `/var`, the journal and installed files
@@ -118,8 +118,9 @@ do not pop, and the power LED turns off. Setting `suspend_poweroff_min`
 powers the device off cleanly after that many minutes asleep.
 
 Battery: one low-battery notification per discharge at 10 percent
-(`warn_percent`), a clean shutdown at 3 percent (`poweroff_percent`), and
-the red status LED lights up while charging (`charge_led`).
+(`warn_percent`), a clean shutdown at 3 percent (`poweroff_percent`).
+The red status LED is reserved for faults: it stays off in normal
+operation, charging included.
 
 Radios: Wi-Fi and Bluetooth start blocked. Once you toggle them, the
 choice is remembered across reboots (`wifi_default`, `bluetooth_default`).

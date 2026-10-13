@@ -1,8 +1,0 @@
-config BR2_PACKAGE_LIBRETRO_GAMBATTE
-	bool "libretro-gambatte"
-	help
-	  Libretro core: Game Boy and Game Boy Color (Gambatte, accuracy
-	  focused). The handheld's native screen resolution and button set
-	  make GB/GBC a first-class case.
-
-	  https://docs.libretro.com/library/gambatte

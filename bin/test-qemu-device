@@ -132,7 +132,7 @@ fi
 if [[ ${keep} == 1 ]]; then
     log "--keep: VM left running (kill: kill \$(cat ${state}/qemu.pid))"
 else
-    kill "$(cat "${state}/qemu.pid")" 2>/dev/null
+    [[ -f "${state}/qemu.pid" ]] && kill "$(cat "${state}/qemu.pid")" 2>/dev/null
 fi
 
 if [[ ${failures} == 0 ]]; then

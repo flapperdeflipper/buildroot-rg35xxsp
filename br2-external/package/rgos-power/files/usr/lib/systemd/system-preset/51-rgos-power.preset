@@ -1,1 +1,2 @@
 enable rgos-battery-guard.service
+enable rgos-wifi-probe-retry.service

@@ -85,6 +85,10 @@ endef
 
 define RETROARCH_INSTALL_TARGET_CMDS
 	$(TARGET_MAKE_ENV) $(MAKE) -C "$(@D)" DESTDIR="$(TARGET_DIR)" install
+	# The upstream desktop entry duplicates rgos-game's RetroArch menu
+	# item (and drags dozens of locale GenericNames along); ours launches
+	# through the game launcher, so drop theirs.
+	rm -f $(TARGET_DIR)/usr/share/applications/com.libretro.RetroArch.desktop
 endef
 
 # Cores live in their own packages (libretro-*), installed into

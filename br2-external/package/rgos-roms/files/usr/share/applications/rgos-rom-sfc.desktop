@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Test: SNES (snes9x)
+Comment=Solid green test screen
+Exec=rgos-game retroarch -L /usr/lib/libretro/snes9x_libretro.so /usr/share/rgos/roms/rgos-test.sfc
+Terminal=false
+Categories=Game;

@@ -40,6 +40,10 @@ configuration over symlinks; stay mergeable with ~/.projects/offline-lab.
 
 ## Rules
 
+- Never create git worktrees in this working directory (user rule):
+  drafts live in the main tree behind Kconfig, or on a branch that is
+  merged and deleted - not in extra checkouts.
+
 - No secrets or keys in images or the repo. SSH keys and Wi-Fi are
   provisioned per card on RGOS-BOOT (bin/provision.sh); SSH is key-only.
 - No third-party source committed: fetch at build time, pinned + hashed.

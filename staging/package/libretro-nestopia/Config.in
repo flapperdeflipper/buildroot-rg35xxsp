@@ -1,7 +1,0 @@
-config BR2_PACKAGE_LIBRETRO_NESTOPIA
-	bool "libretro-nestopia"
-	help
-	  Libretro core: Nintendo Entertainment System (Nestopia UE).
-	  Accurate NES with good mapper support.
-
-	  https://docs.libretro.com/library/nestopia_ue

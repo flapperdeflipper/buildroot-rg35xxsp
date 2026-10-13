@@ -1,8 +1,0 @@
-config BR2_PACKAGE_LIBRETRO_GENESIS_PLUS_GX
-	bool "libretro-genesis-plus-gx"
-	help
-	  Libretro core: Sega Mega Drive / Genesis, Master System, Game
-	  Gear, SG-1000, Sega CD (Genesis Plus GX). Note: its own
-	  non-commercial license, not GPL.
-
-	  https://docs.libretro.com/library/genesis_plus_gx

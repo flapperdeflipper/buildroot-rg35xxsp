@@ -1,0 +1,28 @@
+#!/bin/bash
+# The RTL8821CS sometimes fails its first SDIO probe at boot (data errors
+# during the firmware download, error -110); the wifi adapter then does
+# not exist until the next boot. Re-binding the driver brings it up.
+# Retry a few times, then leave it: the failure is intermittent.
+set -u
+
+drv=/sys/bus/sdio/drivers/rtw88_8821cs
+
+for try in 1 2 3 4 5; do
+    [[ -d /sys/class/net/wlan0 ]] && exit 0
+    if [[ -d "${drv}" ]]; then
+        for d in /sys/bus/sdio/devices/*; do
+            [[ -f "${d}/vendor" && "$(cat "${d}/vendor")" == "0x024c" ]] || continue
+            if [[ ! -e "${d}/driver" ]]; then
+                logger -t rgos-power "wifi sdio device ${d##*/} unbound (probe failed); binding rtw88_8821cs (try ${try})"
+                echo "${d##*/}" >"${drv}/bind" 2>/dev/null || true
+            fi
+        done
+    fi
+    sleep 4
+done
+
+if [[ -d /sys/class/net/wlan0 ]]; then
+    logger -t rgos-power "wifi adapter came up after a re-bind"
+else
+    logger -t rgos-power "wifi adapter did not come up; a reboot usually fixes it"
+fi
